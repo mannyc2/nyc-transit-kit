@@ -86,12 +86,13 @@ For local dogfooding of an unpublished `ts-release` checkout, set
 `file:` dependencies, token values, or private absolute paths.
 
 `release:plan` is safe: it renders the release plan and does not publish.
-`release:validate` may require the npm CLI, GitHub CLI, `NPM_TOKEN`, and GitHub
-CLI authentication. For local releases, authenticate with:
+`release:validate` may require the npm CLI, GitHub CLI, `NPM_TOKEN`, and
+`GH_TOKEN`. For local releases, authenticate with:
 
 ```sh
 gh auth login
 gh auth status
+export GH_TOKEN="$(gh auth token)"
 ```
 
 In GitHub Actions, pass the built-in workflow token to `gh` as
@@ -105,6 +106,42 @@ bun run release:run --execute --approve-irreversible
 
 The v0 GitHub release target is configured as a draft release first.
 
+## NPM Publish Auth
+
+The first `0.1.0` publication is a bootstrap publish because the
+`@nyc-transit-kit/*` packages do not exist on npm yet. npm trusted publishing
+relationships can only be configured for packages that already exist, so the
+initial publish uses an npm account session or granular access token with 2FA
+bypass. After the packages exist, configure npm trusted publishing for each
+package and move the npm targets from `tokenEnv` to `trustedPublishing`.
+
+For token-backed bootstrap publishing, make sure the token is wired into npm
+itself, not only exported as `NPM_TOKEN`. Locally that can be a private `.npmrc`
+entry such as:
+
+```sh
+//registry.npmjs.org/:_authToken=${NPM_TOKEN}
+```
+
+In GitHub Actions, `actions/setup-node` can create the registry `.npmrc`, and
+the publish step can pass `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`.
+
+Once the first package versions exist, configure trusted publishing through
+npmjs.com or `npm trust github`. The trusted publisher must match the repository
+and the exact workflow filename that runs `npm publish`, and the workflow must
+run on a GitHub-hosted runner with:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+```
+
+Future release workflows that also create GitHub Releases need
+`contents: write` for the GitHub release job. Trusted publishing requires Node
+22.14.0 or newer and npm 11.5.1 or newer. `npm whoami` does not validate OIDC
+auth because npm performs the token exchange during `npm publish`.
+
 ## GitHub Runbook
 
 1. Run local checks:
@@ -117,12 +154,15 @@ The v0 GitHub release target is configured as a draft release first.
    disabled. Review `.release/evidence`, `.release/artifacts`, and `dist`.
 4. Configure GitHub Secret `NPM_TOKEN`, then rerun the manual dry-run workflow
    with authenticated validate enabled. The workflow uses `${{ github.token }}`
-   for GitHub CLI authentication.
+   for GitHub CLI authentication. This token-backed npm step is only for the
+   initial package bootstrap.
 5. Review the rendered `ts-release` plan. Confirm every npm target points at
    `.release/npm/<package>` and the GitHub target creates a draft release.
 6. Publish only after approval, using a local command or protected manual
    workflow that passes `--execute --approve-irreversible`.
-7. Post-publish, verify npm and GitHub state:
+7. Configure npm trusted publishing for the now-existing packages, then switch
+   npm targets to trusted publishing in a follow-up release-flow change.
+8. Post-publish, verify npm and GitHub state:
 
 ```sh
 npm view @nyc-transit-kit/contracts version

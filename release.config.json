@@ -209,6 +209,7 @@
       "_tag": "GitHubReleaseTarget",
       "id": "github",
       "repository": "mannyc2/nyc-transit-kit",
+      "tokenEnv": "GH_TOKEN",
       "draft": true,
       "prerelease": false,
       "dryRunSupport": "simulated",
