@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises"
+import { readdir, stat } from "node:fs/promises"
 import { join } from "node:path"
 
 type JsonRecord = Record<string, unknown>
@@ -41,7 +41,14 @@ const runCommand = async (command: ReadonlyArray<string>) => {
   return exitCode === 0 ? stdout.trim() : undefined
 }
 
-const hasGitDirectory = async () => Bun.file(join(rootPath, ".git")).exists()
+const hasGitMetadata = async () => {
+  try {
+    const metadata = await stat(join(rootPath, ".git"))
+    return metadata.isDirectory() || metadata.isFile()
+  } catch {
+    return false
+  }
+}
 
 const collectDuplicateValues = (values: ReadonlyArray<string>) => {
   const seen = new Set<string>()
@@ -103,7 +110,7 @@ if (identity === undefined) {
 
   if (commit === undefined || commit.length === 0) {
     failures.push("release identity commit must be a non-empty string")
-  } else if (await hasGitDirectory()) {
+  } else if (await hasGitMetadata()) {
     const currentCommit = await runCommand(["git", "rev-parse", "--short", "HEAD"])
     const trackedStatus = await runCommand(["git", "status", "--porcelain", "--untracked-files=no"])
     if (commit === "HEAD" && currentCommit === undefined) {

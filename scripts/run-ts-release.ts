@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises"
+import { mkdir, stat } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
 type JsonRecord = Record<string, unknown>
@@ -25,7 +25,14 @@ const writeJson = async (path: string, value: JsonRecord) => {
 const streamText = async (stream: ReadableStream<Uint8Array> | null) =>
   stream === null ? "" : await new Response(stream).text()
 
-const hasGitDirectory = async () => Bun.file(join(rootPath, ".git")).exists()
+const hasGitMetadata = async () => {
+  try {
+    const metadata = await stat(join(rootPath, ".git"))
+    return metadata.isDirectory() || metadata.isFile()
+  } catch {
+    return false
+  }
+}
 
 const resolveCliPath = async () => {
   const envPath = process.env.TS_RELEASE_CLI
@@ -48,7 +55,7 @@ if (
   (args[0] === "plan" || args[0] === "print") &&
   configArgIndex >= 0 &&
   args[configArgIndex + 1] !== undefined &&
-  !(await hasGitDirectory())
+  !(await hasGitMetadata())
 ) {
   const configPath = args[configArgIndex + 1]
   const config = await readJsonRecord(join(rootPath, configPath))
