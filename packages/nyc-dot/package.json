@@ -1,0 +1,31 @@
+{
+  "name": "@nyc-transit-kit/nyc-dot",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./bus-lanes": "./src/bus-lanes.ts",
+    "./client": "./src/client.ts",
+    "./datasets": "./src/datasets.ts",
+    "./errors": "./src/errors.ts",
+    "./traffic-speeds": "./src/traffic-speeds.ts",
+    "./traffic-volume": "./src/traffic-volume.ts"
+  },
+  "types": "./src/index.ts",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "bun test ./test"
+  },
+  "dependencies": {
+    "@nyc-transit-kit/contracts": "0.1.0",
+    "@nyc-transit-kit/soda3": "0.1.0",
+    "effect": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

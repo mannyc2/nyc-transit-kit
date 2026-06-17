@@ -1,0 +1,32 @@
+{
+  "name": "@nyc-transit-kit/contracts",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts",
+    "./descriptor-registry": "./src/descriptor-registry.ts",
+    "./ids": "./src/ids.ts",
+    "./metadata": "./src/metadata.ts",
+    "./mta": "./src/mta.ts",
+    "./nyc-dot": "./src/nyc-dot.ts",
+    "./nyc-open-data": "./src/nyc-open-data.ts",
+    "./release": "./src/release.ts",
+    "./soda3": "./src/soda3.ts"
+  },
+  "types": "./src/index.ts",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "bun test ./test"
+  },
+  "dependencies": {
+    "effect": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

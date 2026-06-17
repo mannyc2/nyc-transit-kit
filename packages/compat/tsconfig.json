@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "references": [
+    { "path": "../soda3" },
+    { "path": "../mta" },
+    { "path": "../nyc-open-data" },
+    { "path": "../nyc-dot" }
+  ],
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

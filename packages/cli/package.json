@@ -1,0 +1,34 @@
+{
+  "name": "@nyc-transit-kit/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "ntk": "./src/main.ts",
+    "nyc-transit": "./src/main.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "files": [
+    "src",
+    "scripts"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "bun test ./test"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "catalog:",
+    "@nyc-transit-kit/contracts": "0.1.0",
+    "@nyc-transit-kit/mta": "0.1.0",
+    "@nyc-transit-kit/nyc-dot": "0.1.0",
+    "@nyc-transit-kit/nyc-open-data": "0.1.0",
+    "@nyc-transit-kit/soda3": "0.1.0",
+    "effect": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

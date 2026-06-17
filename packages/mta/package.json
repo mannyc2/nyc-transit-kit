@@ -1,0 +1,32 @@
+{
+  "name": "@nyc-transit-kit/mta",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./datasets": "./src/datasets.ts",
+    "./feeds": "./src/feeds.ts",
+    "./errors": "./src/errors.ts",
+    "./gtfs-realtime": "./src/gtfs-realtime.ts",
+    "./gtfs-static": "./src/gtfs-static.ts",
+    "./open-data": "./src/open-data.ts"
+  },
+  "types": "./src/index.ts",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "bun test ./test"
+  },
+  "dependencies": {
+    "@nyc-transit-kit/contracts": "0.1.0",
+    "@nyc-transit-kit/soda3": "0.1.0",
+    "effect": "catalog:",
+    "gtfs-realtime-bindings": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

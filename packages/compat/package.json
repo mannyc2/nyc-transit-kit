@@ -1,0 +1,31 @@
+{
+  "name": "@nyc-transit-kit/compat",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./mta": "./src/mta.ts",
+    "./nyc-dot": "./src/nyc-dot.ts",
+    "./nyc-open-data": "./src/nyc-open-data.ts",
+    "./soda3": "./src/soda3.ts"
+  },
+  "types": "./src/index.ts",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "bun test ./test"
+  },
+  "dependencies": {
+    "@nyc-transit-kit/mta": "0.1.0",
+    "@nyc-transit-kit/nyc-dot": "0.1.0",
+    "@nyc-transit-kit/nyc-open-data": "0.1.0",
+    "@nyc-transit-kit/soda3": "0.1.0",
+    "effect": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@nyc-transit-kit/fixtures",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "files": [
+    "src",
+    "soda3",
+    "mta",
+    "nyc-open-data",
+    "nyc-dot",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "bun test ./test"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

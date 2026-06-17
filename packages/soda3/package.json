@@ -1,0 +1,31 @@
+{
+  "name": "@nyc-transit-kit/soda3",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./catalog": "./src/catalog.ts",
+    "./client": "./src/client.ts",
+    "./endpoints": "./src/endpoints.ts",
+    "./errors": "./src/errors.ts",
+    "./export": "./src/export.ts",
+    "./query": "./src/query.ts",
+    "./soql": "./src/soql.ts"
+  },
+  "types": "./src/index.ts",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "bun test ./test"
+  },
+  "dependencies": {
+    "@nyc-transit-kit/contracts": "0.1.0",
+    "effect": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "ignoreDeprecations": "6.0",
+    "lib": ["ESNext"],
+    "module": "Preserve",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "@nyc-transit-kit/cli": ["packages/cli/src/index.ts"],
+      "@nyc-transit-kit/compat": ["packages/compat/src/index.ts"],
+      "@nyc-transit-kit/compat/*": ["packages/compat/src/*.ts"],
+      "@nyc-transit-kit/contracts": ["packages/contracts/src/index.ts"],
+      "@nyc-transit-kit/contracts/*": ["packages/contracts/src/*.ts"],
+      "@nyc-transit-kit/fixtures": ["packages/fixtures/src/index.ts"],
+      "@nyc-transit-kit/mta": ["packages/mta/src/index.ts"],
+      "@nyc-transit-kit/mta/*": ["packages/mta/src/*.ts"],
+      "@nyc-transit-kit/nyc-dot": ["packages/nyc-dot/src/index.ts"],
+      "@nyc-transit-kit/nyc-dot/*": ["packages/nyc-dot/src/*.ts"],
+      "@nyc-transit-kit/nyc-open-data": ["packages/nyc-open-data/src/index.ts"],
+      "@nyc-transit-kit/nyc-open-data/*": ["packages/nyc-open-data/src/*.ts"],
+      "@nyc-transit-kit/soda3": ["packages/soda3/src/index.ts"],
+      "@nyc-transit-kit/soda3/*": ["packages/soda3/src/*.ts"]
+    },
+    "plugins": [
+      {
+        "name": "@effect/language-service"
+      }
+    ],
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ESNext",
+    "types": ["bun"],
+    "verbatimModuleSyntax": true
+  }
+}

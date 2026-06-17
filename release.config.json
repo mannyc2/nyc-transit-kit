@@ -1,0 +1,221 @@
+{
+  "identity": {
+    "name": "nyc-transit-kit",
+    "version": "0.1.0",
+    "commit": "HEAD",
+    "tag": "v0.1.0",
+    "notes": "Initial v0 release of the Effect-native NYC and MTA transit data toolkit."
+  },
+  "artifacts": [
+    {
+      "id": "npm-cli",
+      "path": ".release/npm/cli",
+      "format": "directory",
+      "consumers": ["npm-cli"]
+    },
+    {
+      "id": "npm-compat",
+      "path": ".release/npm/compat",
+      "format": "directory",
+      "consumers": ["npm-compat"]
+    },
+    {
+      "id": "npm-contracts",
+      "path": ".release/npm/contracts",
+      "format": "directory",
+      "consumers": ["npm-contracts"]
+    },
+    {
+      "id": "npm-fixtures",
+      "path": ".release/npm/fixtures",
+      "format": "directory",
+      "consumers": ["npm-fixtures"]
+    },
+    {
+      "id": "npm-mta",
+      "path": ".release/npm/mta",
+      "format": "directory",
+      "consumers": ["npm-mta"]
+    },
+    {
+      "id": "npm-nyc-dot",
+      "path": ".release/npm/nyc-dot",
+      "format": "directory",
+      "consumers": ["npm-nyc-dot"]
+    },
+    {
+      "id": "npm-nyc-open-data",
+      "path": ".release/npm/nyc-open-data",
+      "format": "directory",
+      "consumers": ["npm-nyc-open-data"]
+    },
+    {
+      "id": "npm-soda3",
+      "path": ".release/npm/soda3",
+      "format": "directory",
+      "consumers": ["npm-soda3"]
+    },
+    {
+      "id": "github-binary-linux",
+      "path": "dist/ntk",
+      "format": "file",
+      "consumers": ["github"]
+    },
+    {
+      "id": "github-release-manifest",
+      "path": "dist/ntk-release-manifest.json",
+      "format": "file",
+      "consumers": ["github"]
+    },
+    {
+      "id": "github-cli-tarball",
+      "path": ".release/artifacts/nyc-transit-kit-cli-0.1.0.tgz",
+      "format": "tarball",
+      "consumers": ["github"]
+    },
+    {
+      "id": "github-compat-tarball",
+      "path": ".release/artifacts/nyc-transit-kit-compat-0.1.0.tgz",
+      "format": "tarball",
+      "consumers": ["github"]
+    },
+    {
+      "id": "github-contracts-tarball",
+      "path": ".release/artifacts/nyc-transit-kit-contracts-0.1.0.tgz",
+      "format": "tarball",
+      "consumers": ["github"]
+    },
+    {
+      "id": "github-fixtures-tarball",
+      "path": ".release/artifacts/nyc-transit-kit-fixtures-0.1.0.tgz",
+      "format": "tarball",
+      "consumers": ["github"]
+    },
+    {
+      "id": "github-mta-tarball",
+      "path": ".release/artifacts/nyc-transit-kit-mta-0.1.0.tgz",
+      "format": "tarball",
+      "consumers": ["github"]
+    },
+    {
+      "id": "github-nyc-dot-tarball",
+      "path": ".release/artifacts/nyc-transit-kit-nyc-dot-0.1.0.tgz",
+      "format": "tarball",
+      "consumers": ["github"]
+    },
+    {
+      "id": "github-nyc-open-data-tarball",
+      "path": ".release/artifacts/nyc-transit-kit-nyc-open-data-0.1.0.tgz",
+      "format": "tarball",
+      "consumers": ["github"]
+    },
+    {
+      "id": "github-soda3-tarball",
+      "path": ".release/artifacts/nyc-transit-kit-soda3-0.1.0.tgz",
+      "format": "tarball",
+      "consumers": ["github"]
+    }
+  ],
+  "targets": [
+    {
+      "_tag": "NpmRegistryTarget",
+      "id": "npm-contracts",
+      "registry": "https://registry.npmjs.org",
+      "packagePath": ".release/npm/contracts",
+      "tokenEnv": "NPM_TOKEN",
+      "access": "public",
+      "dryRunSupport": "native",
+      "mutability": "immutable",
+      "recovery": "publish-new-version"
+    },
+    {
+      "_tag": "NpmRegistryTarget",
+      "id": "npm-fixtures",
+      "registry": "https://registry.npmjs.org",
+      "packagePath": ".release/npm/fixtures",
+      "tokenEnv": "NPM_TOKEN",
+      "access": "public",
+      "dryRunSupport": "native",
+      "mutability": "immutable",
+      "recovery": "publish-new-version"
+    },
+    {
+      "_tag": "NpmRegistryTarget",
+      "id": "npm-soda3",
+      "registry": "https://registry.npmjs.org",
+      "packagePath": ".release/npm/soda3",
+      "tokenEnv": "NPM_TOKEN",
+      "access": "public",
+      "dryRunSupport": "native",
+      "mutability": "immutable",
+      "recovery": "publish-new-version"
+    },
+    {
+      "_tag": "NpmRegistryTarget",
+      "id": "npm-mta",
+      "registry": "https://registry.npmjs.org",
+      "packagePath": ".release/npm/mta",
+      "tokenEnv": "NPM_TOKEN",
+      "access": "public",
+      "dryRunSupport": "native",
+      "mutability": "immutable",
+      "recovery": "publish-new-version"
+    },
+    {
+      "_tag": "NpmRegistryTarget",
+      "id": "npm-nyc-dot",
+      "registry": "https://registry.npmjs.org",
+      "packagePath": ".release/npm/nyc-dot",
+      "tokenEnv": "NPM_TOKEN",
+      "access": "public",
+      "dryRunSupport": "native",
+      "mutability": "immutable",
+      "recovery": "publish-new-version"
+    },
+    {
+      "_tag": "NpmRegistryTarget",
+      "id": "npm-nyc-open-data",
+      "registry": "https://registry.npmjs.org",
+      "packagePath": ".release/npm/nyc-open-data",
+      "tokenEnv": "NPM_TOKEN",
+      "access": "public",
+      "dryRunSupport": "native",
+      "mutability": "immutable",
+      "recovery": "publish-new-version"
+    },
+    {
+      "_tag": "NpmRegistryTarget",
+      "id": "npm-compat",
+      "registry": "https://registry.npmjs.org",
+      "packagePath": ".release/npm/compat",
+      "tokenEnv": "NPM_TOKEN",
+      "access": "public",
+      "dryRunSupport": "native",
+      "mutability": "immutable",
+      "recovery": "publish-new-version"
+    },
+    {
+      "_tag": "NpmRegistryTarget",
+      "id": "npm-cli",
+      "registry": "https://registry.npmjs.org",
+      "packagePath": ".release/npm/cli",
+      "tokenEnv": "NPM_TOKEN",
+      "access": "public",
+      "dryRunSupport": "native",
+      "mutability": "immutable",
+      "recovery": "publish-new-version"
+    },
+    {
+      "_tag": "GitHubReleaseTarget",
+      "id": "github",
+      "repository": "mannyc2/nyc-transit-kit",
+      "draft": true,
+      "prerelease": false,
+      "dryRunSupport": "simulated",
+      "mutability": "mutable-release",
+      "recovery": "delete-and-recreate"
+    }
+  ],
+  "strict": true,
+  "evidenceDirectory": ".release/evidence"
+}

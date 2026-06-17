@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/contracts" },
+    { "path": "./packages/soda3" },
+    { "path": "./packages/mta" },
+    { "path": "./packages/nyc-open-data" },
+    { "path": "./packages/nyc-dot" },
+    { "path": "./packages/cli" },
+    { "path": "./packages/compat" },
+    { "path": "./packages/fixtures" }
+  ]
+}

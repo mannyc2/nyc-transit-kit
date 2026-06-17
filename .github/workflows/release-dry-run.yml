@@ -1,0 +1,47 @@
+name: Release Dry Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_authenticated_validate:
+        description: Run ts-release validate with NPM_TOKEN and GitHub CLI auth.
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out nyc-transit-kit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - run: bun install --frozen-lockfile
+      - run: bun run check:release-local
+
+      - name: Authenticated release validation
+        if: ${{ inputs.run_authenticated_validate }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: bun run release:validate
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-dry-run-evidence
+          path: |
+            .release/evidence
+            .release/artifacts
+            dist
+          if-no-files-found: warn

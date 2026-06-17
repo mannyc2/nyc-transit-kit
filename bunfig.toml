@@ -1,0 +1,10 @@
+[test]
+root = "."
+coverage = false
+coverageSkipTestFiles = true
+pathIgnorePatterns = [
+  "node_modules/**",
+  ".repos/**",
+  "dist/**",
+  ".git/**"
+]
