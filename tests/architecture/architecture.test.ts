@@ -815,7 +815,7 @@ describe("architecture guardrails", () => {
     for (const [dependencyName, version] of Object.entries(rootDevDependencies)) {
       if (isEffectRuntimePackage(dependencyName)) {
         const allowedRootEffectImport =
-          dependencyName === "effect" &&
+          (dependencyName === "effect" || dependencyName === "@effect/platform-bun") &&
           version === "catalog:" &&
           stringValue(rootCatalog, dependencyName) === expectedEffectVersion
         if (!allowedRootEffectImport) {
