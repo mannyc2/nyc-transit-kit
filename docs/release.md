@@ -125,11 +125,11 @@ entry such as:
 //registry.npmjs.org/:_authToken=${NPM_TOKEN}
 ```
 
-In GitHub Actions, `actions/setup-node` can create the registry `.npmrc`. The
-repo's `Release Dry Run` workflow also appends an auth line that expands
-`NPM_TOKEN`, because `ts-release` child npm commands are modeled around the
-`tokenEnv` configured in `release.config.json`. During token bootstrap, pass
-both `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` and
+In GitHub Actions, `actions/setup-node` can create a user `.npmrc`. The repo's
+`Release Dry Run` workflow also creates a temporary project `.npmrc` that
+expands `NPM_TOKEN`, because `ts-release` child npm commands are modeled around
+the `tokenEnv` configured in `release.config.json`. During token bootstrap,
+pass both `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` and
 `NPM_TOKEN: ${{ secrets.NPM_TOKEN }}`.
 
 Once the first package versions exist, configure trusted publishing for each
