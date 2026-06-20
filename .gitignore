@@ -5,6 +5,7 @@ coverage
 .env
 .env.*
 !.env.example
+.npmrc
 .release
 .repos/effect
 plans

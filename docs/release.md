@@ -117,6 +117,12 @@ initial publish uses an npm account session or granular access token with 2FA
 bypass. After the packages exist, configure npm trusted publishing for each
 package and move the npm targets from `tokenEnv` to `trustedPublishing`.
 
+Before bootstrap publishing, create the npm organization named
+`nyc-transit-kit` under the publishing npm account and choose the free public
+package plan. npm uses the organization name as the package scope, and
+`npm publish --access public` fails with `E404 Scope not found` until that
+scope exists and the publishing account/token can write to it.
+
 For token-backed bootstrap publishing, make sure the token is wired into npm
 itself, not only exported as `NPM_TOKEN`. Locally that can be a private `.npmrc`
 entry such as:
@@ -176,14 +182,17 @@ auth because npm performs the token exchange during `npm publish`.
    with authenticated validate enabled. The workflow uses `${{ github.token }}`
    for GitHub authentication and `NODE_AUTH_TOKEN` plus `NPM_TOKEN` for npm.
    This token-backed npm step is only for the initial package bootstrap.
-5. Review the rendered `ts-release` plan. Confirm every npm target points at
+5. Create the `nyc-transit-kit` npm organization before first publish. Confirm
+   the npm account behind `NPM_TOKEN` has permission to publish under
+   `@nyc-transit-kit`.
+6. Review the rendered `ts-release` plan. Confirm every npm target points at
    `.release/npm/<package>`, has the matching `@nyc-transit-kit/*`
    `packageName`, and the GitHub target creates a draft release.
-6. Publish only after approval, using a local command or protected manual
+7. Publish only after approval, using a local command or protected manual
    workflow that passes `--execute --approve-irreversible`.
-7. Configure npm trusted publishing for the now-existing packages, then run
+8. Configure npm trusted publishing for the now-existing packages, then run
    `bun run release:trust-publishing` and review the resulting config change.
-8. Post-publish, verify npm and GitHub state:
+9. Post-publish, verify npm and GitHub state:
 
 ```sh
 npm view @nyc-transit-kit/contracts version
