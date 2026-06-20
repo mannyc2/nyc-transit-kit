@@ -19,6 +19,11 @@ const stringField = (record: JsonRecord, key: string) => {
   return typeof value === "string" ? value : undefined
 }
 
+const booleanField = (record: JsonRecord, key: string) => {
+  const value = record[key]
+  return typeof value === "boolean" ? value : undefined
+}
+
 const readJsonRecord = async (path: string) => {
   const parsed: unknown = JSON.parse(await Bun.file(path).text())
   if (!isRecord(parsed)) {
@@ -84,6 +89,9 @@ const targetTokenEnvNames = (target: JsonRecord) => {
   }
   return names
 }
+
+const expectedNpmPackageName = (targetId: string) =>
+  targetId.startsWith("npm-") ? `@nyc-transit-kit/${targetId.slice("npm-".length)}` : undefined
 
 const failures: Array<string> = []
 const rootManifest = await readJsonRecord(join(rootPath, "package.json"))
@@ -164,11 +172,67 @@ for (const target of targets) {
   }
   if (tag === "NpmRegistryTarget") {
     const packagePath = stringField(target, "packagePath")
+    const packageName = stringField(target, "packageName")
+    const tokenEnv = stringField(target, "tokenEnv")
+    const trustedPublishing = isRecord(target.trustedPublishing)
+      ? target.trustedPublishing
+      : undefined
     if (packagePath === undefined || !packagePath.startsWith(".release/npm/")) {
       failures.push(`npm target ${id ?? "<unknown>"} must package from .release/npm/`)
     }
     if (packagePath !== undefined && !isSafeRelativePath(packagePath)) {
       failures.push(`npm target ${id ?? "<unknown>"} has unsafe packagePath`)
+    }
+    if (packageName === undefined) {
+      failures.push(`npm target ${id ?? "<unknown>"} is missing packageName`)
+    }
+    if (id !== undefined && packageName !== undefined) {
+      const expected = expectedNpmPackageName(id)
+      if (expected !== undefined && packageName !== expected) {
+        failures.push(`npm target ${id} packageName ${packageName} must be ${expected}`)
+      }
+    }
+    if (tokenEnv !== undefined && trustedPublishing !== undefined) {
+      failures.push(
+        `npm target ${id ?? "<unknown>"} cannot use tokenEnv and trustedPublishing together`
+      )
+    }
+    if (tokenEnv === undefined && trustedPublishing === undefined) {
+      failures.push(`npm target ${id ?? "<unknown>"} must use tokenEnv or trustedPublishing`)
+    }
+    if (trustedPublishing !== undefined) {
+      const provider = stringField(trustedPublishing, "provider")
+      const workflow = stringField(trustedPublishing, "workflow")
+      if (provider !== "github-actions") {
+        failures.push(
+          `npm target ${id ?? "<unknown>"} trustedPublishing provider must be github-actions`
+        )
+      }
+      if (
+        workflow === undefined ||
+        workflow.includes("/") ||
+        workflow.includes("\\") ||
+        (!workflow.endsWith(".yml") && !workflow.endsWith(".yaml"))
+      ) {
+        failures.push(
+          `npm target ${id ?? "<unknown>"} trustedPublishing workflow must be a workflow filename`
+        )
+      }
+      if (booleanField(trustedPublishing, "packageExists") !== true) {
+        failures.push(
+          `npm target ${id ?? "<unknown>"} trustedPublishing packageExists must be true`
+        )
+      }
+      if (booleanField(trustedPublishing, "verifyPackageExists") !== true) {
+        failures.push(
+          `npm target ${id ?? "<unknown>"} trustedPublishing verifyPackageExists must be true`
+        )
+      }
+      if (booleanField(target, "provenance") !== true) {
+        failures.push(
+          `npm target ${id ?? "<unknown>"} must enable provenance with trustedPublishing`
+        )
+      }
     }
   }
   if (tag === "GitHubReleaseTarget") {

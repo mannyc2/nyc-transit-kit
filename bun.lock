@@ -7,7 +7,7 @@
       "devDependencies": {
         "@biomejs/biome": "catalog:tooling",
         "@effect/language-service": "0.86.2",
-        "@mannyc1/ts-release": "0.0.1",
+        "@mannyc1/ts-release": "0.0.3",
         "@types/bun": "catalog:tooling",
         "effect": "catalog:",
         "typescript": "catalog:tooling",
@@ -140,7 +140,7 @@
 
     "@jsdoc/salty": ["@jsdoc/salty@0.2.12", "", { "dependencies": { "lodash": "^4.18.1" } }, "sha512-TuB0x50EoAvEX/UEWITd8Mkn3WhiTjSvbTMCLj0BhsQEl5iUzjXdA0bETEVpTk+5TGTLR6QktI9H4hLviVeaAQ=="],
 
-    "@mannyc1/ts-release": ["@mannyc1/ts-release@0.0.1", "", { "dependencies": { "@effect/platform-bun": "4.0.0-beta.83", "effect": "4.0.0-beta.83" }, "bin": { "release": "dist/cli/main.js" } }, "sha512-ug64r9soCspe3vv04nLnk0L23WUta0ZkU359irZN7+rST8xhM+gi6YIoKcXj6DeI9VnKD7nxlvUqRMQNuG4AFw=="],
+    "@mannyc1/ts-release": ["@mannyc1/ts-release@0.0.3", "", { "dependencies": { "effect": "4.0.0-beta.83" } }, "sha512-bQfCsVFnRwRaq01HW1ShDdVDYSDGOueyxxUqtvDjGmNadRuw/dYUPJjutpOc8CRomBUqcPO33/0F8wqQELu+VA=="],
 
     "@msgpackr-extract/msgpackr-extract-darwin-arm64": ["@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4", "", { "os": "darwin", "cpu": "arm64" }, "sha512-LCkGo6JDfaBhgST7UpPWgNgLINpcpabaHfyz5OBx75nUYxBsaEPxjnyNjWpeb/xBup/682QnBfRBy2/LvPutZQ=="],
 

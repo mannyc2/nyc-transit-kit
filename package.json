@@ -42,12 +42,13 @@
     "release:plan": "bun run scripts/run-ts-release.ts plan --config release.config.json --format text",
     "release:plan:json": "bun run scripts/run-ts-release.ts plan --config release.config.json --format json --out .release/evidence/plan.json",
     "release:validate": "bun run scripts/run-ts-release.ts validate --config release.config.json",
-    "release:run": "bun run scripts/run-ts-release.ts run --config release.config.json"
+    "release:run": "bun run scripts/run-ts-release.ts run --config release.config.json",
+    "release:trust-publishing": "bun run scripts/switch-release-config-to-trusted-publishing.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:tooling",
     "@effect/language-service": "0.86.2",
-    "@mannyc1/ts-release": "0.0.1",
+    "@mannyc1/ts-release": "0.0.3",
     "@types/bun": "catalog:tooling",
     "effect": "catalog:",
     "typescript": "catalog:tooling"

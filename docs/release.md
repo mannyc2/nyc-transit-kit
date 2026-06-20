@@ -74,20 +74,22 @@ the no-runtime executable artifact for GitHub Releases.
 `@mannyc1/ts-release` package as a root dev dependency; it is not a dependency
 of any publishable `@nyc-transit-kit/*` package.
 
-The standard release commands resolve the `release` binary from
-`node_modules/.bin` after `bun install`:
+The standard release commands call `scripts/run-ts-release.ts`, a small Bun
+adapter over the published `@mannyc1/ts-release/workflows` API:
 
 ```sh
 bun run release:plan
 ```
 
-For local dogfooding of an unpublished `ts-release` checkout, set
-`TS_RELEASE_CLI` to a built CLI path. Do not commit local `ts-release` paths,
-`file:` dependencies, token values, or private absolute paths.
+Do not commit local `ts-release` paths, `file:` dependencies, token values, or
+private absolute paths. If dogfooding a local `ts-release` checkout, keep that
+wiring outside committed manifests and restore the published package dependency
+before release-flow changes land.
 
 `release:plan` is safe: it renders the release plan and does not publish.
-`release:validate` may require the npm CLI, GitHub CLI, `NPM_TOKEN`, and
-`GH_TOKEN`. For local releases, authenticate with:
+`release:validate` may require the npm CLI, `NPM_TOKEN`, and `GH_TOKEN`. For
+local releases, authenticate GitHub however you prefer; if using `gh`, export
+the token explicitly:
 
 ```sh
 gh auth login
@@ -124,12 +126,29 @@ entry such as:
 ```
 
 In GitHub Actions, `actions/setup-node` can create the registry `.npmrc`, and
-the publish step can pass `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`.
+the publish or authenticated validation step must pass
+`NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`. The repo's `Release Dry Run`
+workflow also passes `NPM_TOKEN` because `release.config.json` intentionally
+uses `tokenEnv` during bootstrap.
 
-Once the first package versions exist, configure trusted publishing through
-npmjs.com or `npm trust github`. The trusted publisher must match the repository
-and the exact workflow filename that runs `npm publish`, and the workflow must
-run on a GitHub-hosted runner with:
+Once the first package versions exist, configure trusted publishing for each
+package through npmjs.com. The trusted publisher must match:
+
+- owner: `mannyc2`
+- repository: `nyc-transit-kit`
+- workflow filename: `release.yml`
+- allowed action: `npm publish`
+
+Then run:
+
+```sh
+bun run release:trust-publishing
+```
+
+That command verifies all `@nyc-transit-kit/*` packages are visible on npm
+before rewriting npm targets from `tokenEnv` to `trustedPublishing`. The
+trusted publishing workflow must run on a GitHub-hosted runner with Node 24,
+npm 11.5.1 or newer, and:
 
 ```yaml
 permissions:
@@ -154,14 +173,15 @@ auth because npm performs the token exchange during `npm publish`.
    disabled. Review `.release/evidence`, `.release/artifacts`, and `dist`.
 4. Configure GitHub Secret `NPM_TOKEN`, then rerun the manual dry-run workflow
    with authenticated validate enabled. The workflow uses `${{ github.token }}`
-   for GitHub CLI authentication. This token-backed npm step is only for the
-   initial package bootstrap.
+   for GitHub authentication and `NODE_AUTH_TOKEN` plus `NPM_TOKEN` for npm.
+   This token-backed npm step is only for the initial package bootstrap.
 5. Review the rendered `ts-release` plan. Confirm every npm target points at
-   `.release/npm/<package>` and the GitHub target creates a draft release.
+   `.release/npm/<package>`, has the matching `@nyc-transit-kit/*`
+   `packageName`, and the GitHub target creates a draft release.
 6. Publish only after approval, using a local command or protected manual
    workflow that passes `--execute --approve-irreversible`.
-7. Configure npm trusted publishing for the now-existing packages, then switch
-   npm targets to trusted publishing in a follow-up release-flow change.
+7. Configure npm trusted publishing for the now-existing packages, then run
+   `bun run release:trust-publishing` and review the resulting config change.
 8. Post-publish, verify npm and GitHub state:
 
 ```sh
