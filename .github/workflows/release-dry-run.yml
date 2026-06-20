@@ -35,6 +35,10 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
+      - name: Configure npm auth for ts-release commands
+        if: ${{ inputs.run_authenticated_validate }}
+        run: printf '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n' >> "$NPM_CONFIG_USERCONFIG"
+
       - name: Authenticated release validation
         if: ${{ inputs.run_authenticated_validate }}
         env:
