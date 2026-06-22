@@ -139,12 +139,28 @@ pass both `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` and
 `NPM_TOKEN: ${{ secrets.NPM_TOKEN }}`.
 
 Once the first package versions exist, configure trusted publishing for each
-package through npmjs.com. The trusted publisher must match:
+package through npmjs.com or `npm trust`. The trusted publisher must match:
 
 - owner: `mannyc2`
 - repository: `nyc-transit-kit`
 - workflow filename: `release.yml`
 - allowed action: `npm publish`
+
+With npm 11.15.0 or newer, the CLI form is:
+
+```sh
+for package in cli compat contracts fixtures mta nyc-dot nyc-open-data soda3; do
+  npm trust github "@nyc-transit-kit/${package}" \
+    --file release.yml \
+    --repository mannyc2/nyc-transit-kit \
+    --allow-publish \
+    --yes
+done
+```
+
+`npm trust` requires package write access, account-level 2FA, and an auth method
+accepted by npm trust endpoints. Granular access tokens with the bypass-2FA
+option can publish packages but cannot manage trusted-publisher relationships.
 
 Then run:
 
@@ -163,7 +179,10 @@ permissions:
   id-token: write
 ```
 
-Future release workflows that also create GitHub Releases need
+The `Release` workflow in `.github/workflows/release.yml` is manual and uses
+GitHub OIDC instead of `NPM_TOKEN`. It refuses to run while npm targets are
+still token-backed, so configure npm trust and run `release:trust-publishing`
+first. Future release workflows that also create GitHub Releases need
 `contents: write` for the GitHub release job. Trusted publishing requires Node
 22.14.0 or newer and npm 11.5.1 or newer. `npm whoami` does not validate OIDC
 auth because npm performs the token exchange during `npm publish`.
@@ -178,21 +197,20 @@ auth because npm performs the token exchange during `npm publish`.
 2. Open a PR and wait for default CI to pass.
 3. Run the manual GitHub `Release Dry Run` workflow with authenticated validate
    disabled. Review `.release/evidence`, `.release/artifacts`, and `dist`.
-4. Configure GitHub Secret `NPM_TOKEN`, then rerun the manual dry-run workflow
+4. For the first publish only, create the `nyc-transit-kit` npm organization,
+   configure GitHub Secret `NPM_TOKEN`, then rerun the manual dry-run workflow
    with authenticated validate enabled. The workflow uses `${{ github.token }}`
    for GitHub authentication and `NODE_AUTH_TOKEN` plus `NPM_TOKEN` for npm.
-   This token-backed npm step is only for the initial package bootstrap.
-5. Create the `nyc-transit-kit` npm organization before first publish. Confirm
-   the npm account behind `NPM_TOKEN` has permission to publish under
-   `@nyc-transit-kit`.
+   Skip this step when the package versions already exist on npm.
+5. After packages exist, configure npm trusted publishing for each package, run
+   `bun run release:trust-publishing`, and review the resulting config change.
 6. Review the rendered `ts-release` plan. Confirm every npm target points at
    `.release/npm/<package>`, has the matching `@nyc-transit-kit/*`
    `packageName`, and the GitHub target creates a draft release.
-7. Publish only after approval, using a local command or protected manual
-   workflow that passes `--execute --approve-irreversible`.
-8. Configure npm trusted publishing for the now-existing packages, then run
-   `bun run release:trust-publishing` and review the resulting config change.
-9. Post-publish, verify npm and GitHub state:
+7. Publish only after approval. Once trusted publishing is configured, prefer
+   the manual `Release` workflow with `approve_irreversible=true`; it uses
+   GitHub OIDC for npm and `${{ github.token }}` for the GitHub release.
+8. Post-publish, verify npm and GitHub state:
 
 ```sh
 npm view @nyc-transit-kit/contracts version
