@@ -136,7 +136,7 @@ jobs:
 
       - name: Validate with ts-release
         if: steps.remote-state.outputs.should_release == 'true'
-        uses: mannyc2/ts-release/apps/ts-release-action@260a7c4a5c3aea7762e8f9408c6d8438b2922698
+        uses: mannyc2/ts-release/apps/ts-release-action@aa452f38ca07d1fa6d439f2bbe89d9852806ee42
         with:
           command: validate
           config: release.config.json
@@ -144,7 +144,7 @@ jobs:
 
       - name: Record release plan
         if: steps.remote-state.outputs.should_release == 'true'
-        uses: mannyc2/ts-release/apps/ts-release-action@260a7c4a5c3aea7762e8f9408c6d8438b2922698
+        uses: mannyc2/ts-release/apps/ts-release-action@aa452f38ca07d1fa6d439f2bbe89d9852806ee42
         with:
           command: plan
           config: release.config.json
@@ -206,7 +206,7 @@ jobs:
           bun run check:release-config
 
       - name: Run approved release
-        uses: mannyc2/ts-release/apps/ts-release-action@260a7c4a5c3aea7762e8f9408c6d8438b2922698
+        uses: mannyc2/ts-release/apps/ts-release-action@aa452f38ca07d1fa6d439f2bbe89d9852806ee42
         with:
           command: run
           config: release.config.json
