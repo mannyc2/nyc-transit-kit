@@ -1,57 +1,69 @@
-name: Release Dry Run
+name: Release Plan
 
 on:
   workflow_dispatch:
-    inputs:
-      run_authenticated_validate:
-        description: Run ts-release validate with npm and GitHub auth.
-        type: boolean
-        required: true
-        default: false
+  pull_request:
 
 permissions:
   contents: read
 
 jobs:
-  dry-run:
+  plan:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
     steps:
       - name: Check out nyc-transit-kit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install npm with trusted publishing support
+        run: npm install -g npm@11.17.0
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
 
       - run: bun install --frozen-lockfile
-      - run: bun run check:release-local
 
-      - name: Configure npm registry auth
-        if: ${{ inputs.run_authenticated_validate }}
-        uses: actions/setup-node@v6
+      - name: Run release checks
+        run: |
+          bun run release:version:check
+          bun run check
+          bun run build:cli
+          bun run release:prepare:npm
+          bun run check:npm-stage
+          bun run check:release-config
+
+      - name: Validate with ts-release
+        uses: mannyc2/ts-release/apps/ts-release-action@260a7c4a5c3aea7762e8f9408c6d8438b2922698
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org
+          command: validate
+          config: release.config.json
+          write-step-summary: "true"
 
-      - name: Configure npm auth for ts-release commands
-        if: ${{ inputs.run_authenticated_validate }}
-        run: printf '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n' > .npmrc
-
-      - name: Authenticated release validation
-        if: ${{ inputs.run_authenticated_validate }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: bun run release:validate
+      - name: Record release plan
+        uses: mannyc2/ts-release/apps/ts-release-action@260a7c4a5c3aea7762e8f9408c6d8438b2922698
+        with:
+          command: plan
+          config: release.config.json
+          format: markdown
+          write-step-summary: "true"
+          plan-path: .release/evidence/release-plan.md
 
       - name: Upload release evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: release-dry-run-evidence
+          name: release-plan-evidence
           path: |
             .release/evidence
             .release/artifacts

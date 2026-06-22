@@ -1,21 +1,28 @@
 name: Release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      approve_irreversible:
-        description: Publish npm packages and create the GitHub release.
-        type: boolean
-        required: true
-        default: false
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  plan:
+    name: Plan release
+    if: github.repository == 'mannyc2/nyc-transit-kit' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.remote-state.outputs.should_release }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+
     steps:
       - name: Check out nyc-transit-kit
         uses: actions/checkout@v4
@@ -35,46 +42,183 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - name: Require trusted publishing release config
-        run: |
-          bun -e '
-            const config = await Bun.file("release.config.json").json()
-            const tokenTargets = config.targets.filter((target) =>
-              target._tag === "NpmRegistryTarget" && target.trustedPublishing === undefined
-            )
-            if (tokenTargets.length > 0) {
-              console.error("release.yml requires trustedPublishing npm targets.")
-              console.error("Configure npm trust, then run bun run release:trust-publishing.")
-              console.error(`Still token-backed: ${tokenTargets.map((target) => target.id).join(", ")}`)
-              process.exit(1)
-            }
-          '
-
       - run: bun install --frozen-lockfile
-      - run: bun run check:release-local
 
-      - name: Validate release plan
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bun run release:validate
-
-      - name: Publish release
-        if: ${{ inputs.approve_irreversible }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bun run release:run --execute --approve-irreversible
-
-      - name: Refuse unapproved publish
-        if: ${{ !inputs.approve_irreversible }}
+      - name: Check remote release state
+        id: remote-state
         run: |
-          echo "Set approve_irreversible=true to publish."
-          exit 1
+          node <<'NODE'
+          const { appendFileSync, readFileSync } = require("node:fs")
+          const { spawnSync } = require("node:child_process")
+
+          const config = JSON.parse(readFileSync("release.config.json", "utf8"))
+          const version = config.identity.version
+          const tag = config.identity.tag ?? `v${version}`
+          const npmTargets = config.targets.filter((target) => target._tag === "NpmRegistryTarget")
+          const githubTarget = config.targets.find((target) => target._tag === "GitHubReleaseTarget")
+
+          if (githubTarget === undefined) {
+            throw new Error("release.config.json is missing a GitHub release target")
+          }
+
+          const run = (command, args) => spawnSync(command, args, { encoding: "utf8" })
+          const npmStates = npmTargets.map((target) => {
+            const result = run("npm", [
+              "view",
+              `${target.packageName}@${version}`,
+              "version",
+              "--registry",
+              target.registry
+            ])
+            const text = `${result.stdout}\n${result.stderr}`.toLowerCase()
+            const missing = text.includes("not found") || text.includes("404") || text.includes("e404")
+            if (result.status === 0) {
+              return { target, state: "published" }
+            }
+            if (missing) {
+              return { target, state: "missing" }
+            }
+            throw new Error(`npm view failed for ${target.packageName}@${version}: ${result.stderr || result.stdout}`)
+          })
+
+          const github = run("gh", [
+            "release",
+            "view",
+            tag,
+            "--repo",
+            githubTarget.repository,
+            "--json",
+            "isDraft,tagName"
+          ])
+          const githubText = `${github.stdout}\n${github.stderr}`.toLowerCase()
+          const githubMissing = github.status !== 0 && (
+            githubText.includes("not found") || githubText.includes("404")
+          )
+          if (github.status !== 0 && !githubMissing) {
+            throw new Error(`gh release view failed for ${tag}: ${github.stderr || github.stdout}`)
+          }
+
+          const npmPublished = npmStates.every((entry) => entry.state === "published")
+          const npmMissing = npmStates.every((entry) => entry.state === "missing")
+          const githubExists = github.status === 0
+          let shouldRelease = "false"
+          let status = "complete"
+          let reason = `${tag} already exists remotely.`
+
+          if (npmMissing && githubMissing) {
+            shouldRelease = "true"
+            status = "ready"
+            reason = `${tag} is missing from npm and GitHub.`
+          } else if (!(npmPublished && githubExists)) {
+            const npmSummary = npmStates.map((entry) => `${entry.target.packageName}:${entry.state}`).join(", ")
+            throw new Error(`partial release state for ${tag}: npm=[${npmSummary}] github=${githubExists ? "present" : "missing"}`)
+          }
+
+          appendFileSync(process.env.GITHUB_OUTPUT, `should_release=${shouldRelease}\n`)
+          appendFileSync(process.env.GITHUB_OUTPUT, `status=${status}\n`)
+          appendFileSync(process.env.GITHUB_OUTPUT, `reason=${reason}\n`)
+          console.log(`release eligibility: ${status}; should_release=${shouldRelease}; ${reason}`)
+          NODE
+
+      - name: Stop when release already exists
+        if: steps.remote-state.outputs.should_release != 'true'
+        run: echo "${{ steps.remote-state.outputs.reason }}"
+
+      - name: Run release checks
+        if: steps.remote-state.outputs.should_release == 'true'
+        run: |
+          bun run release:version:check
+          bun run check
+          bun run build:cli
+          bun run release:prepare:npm
+          bun run check:npm-stage
+          bun run check:release-config
+
+      - name: Validate with ts-release
+        if: steps.remote-state.outputs.should_release == 'true'
+        uses: mannyc2/ts-release/apps/ts-release-action@260a7c4a5c3aea7762e8f9408c6d8438b2922698
+        with:
+          command: validate
+          config: release.config.json
+          write-step-summary: "true"
+
+      - name: Record release plan
+        if: steps.remote-state.outputs.should_release == 'true'
+        uses: mannyc2/ts-release/apps/ts-release-action@260a7c4a5c3aea7762e8f9408c6d8438b2922698
+        with:
+          command: plan
+          config: release.config.json
+          format: markdown
+          write-step-summary: "true"
+          plan-path: .release/evidence/release-plan.md
 
       - name: Upload release evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: release-evidence
+          name: release-plan-evidence
+          path: |
+            .release/evidence
+            .release/artifacts
+            dist
+          if-no-files-found: warn
+
+  execute:
+    name: Execute release
+    needs: plan
+    if: needs.plan.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out nyc-transit-kit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install npm with trusted publishing support
+        run: npm install -g npm@11.17.0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - run: bun install --frozen-lockfile
+
+      - name: Prepare release artifacts
+        run: |
+          bun run release:version:check
+          bun run check
+          bun run build:cli
+          bun run release:prepare:npm
+          bun run check:npm-stage
+          bun run check:release-config
+
+      - name: Run approved release
+        uses: mannyc2/ts-release/apps/ts-release-action@260a7c4a5c3aea7762e8f9408c6d8438b2922698
+        with:
+          command: run
+          config: release.config.json
+          execute: "true"
+          approve-irreversible: "true"
+          write-step-summary: "true"
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-execution-evidence
           path: |
             .release/evidence
             .release/artifacts
