@@ -123,11 +123,17 @@
       "registry": "https://registry.npmjs.org",
       "packageName": "@nyc-transit-kit/contracts",
       "packagePath": ".release/npm/contracts",
-      "tokenEnv": "NPM_TOKEN",
       "access": "public",
       "dryRunSupport": "native",
       "mutability": "immutable",
-      "recovery": "publish-new-version"
+      "recovery": "publish-new-version",
+      "trustedPublishing": {
+        "provider": "github-actions",
+        "workflow": "release.yml",
+        "packageExists": true,
+        "verifyPackageExists": true
+      },
+      "provenance": true
     },
     {
       "_tag": "NpmRegistryTarget",
@@ -135,11 +141,17 @@
       "registry": "https://registry.npmjs.org",
       "packageName": "@nyc-transit-kit/fixtures",
       "packagePath": ".release/npm/fixtures",
-      "tokenEnv": "NPM_TOKEN",
       "access": "public",
       "dryRunSupport": "native",
       "mutability": "immutable",
-      "recovery": "publish-new-version"
+      "recovery": "publish-new-version",
+      "trustedPublishing": {
+        "provider": "github-actions",
+        "workflow": "release.yml",
+        "packageExists": true,
+        "verifyPackageExists": true
+      },
+      "provenance": true
     },
     {
       "_tag": "NpmRegistryTarget",
@@ -147,11 +159,17 @@
       "registry": "https://registry.npmjs.org",
       "packageName": "@nyc-transit-kit/soda3",
       "packagePath": ".release/npm/soda3",
-      "tokenEnv": "NPM_TOKEN",
       "access": "public",
       "dryRunSupport": "native",
       "mutability": "immutable",
-      "recovery": "publish-new-version"
+      "recovery": "publish-new-version",
+      "trustedPublishing": {
+        "provider": "github-actions",
+        "workflow": "release.yml",
+        "packageExists": true,
+        "verifyPackageExists": true
+      },
+      "provenance": true
     },
     {
       "_tag": "NpmRegistryTarget",
@@ -159,11 +177,17 @@
       "registry": "https://registry.npmjs.org",
       "packageName": "@nyc-transit-kit/mta",
       "packagePath": ".release/npm/mta",
-      "tokenEnv": "NPM_TOKEN",
       "access": "public",
       "dryRunSupport": "native",
       "mutability": "immutable",
-      "recovery": "publish-new-version"
+      "recovery": "publish-new-version",
+      "trustedPublishing": {
+        "provider": "github-actions",
+        "workflow": "release.yml",
+        "packageExists": true,
+        "verifyPackageExists": true
+      },
+      "provenance": true
     },
     {
       "_tag": "NpmRegistryTarget",
@@ -171,11 +195,17 @@
       "registry": "https://registry.npmjs.org",
       "packageName": "@nyc-transit-kit/nyc-dot",
       "packagePath": ".release/npm/nyc-dot",
-      "tokenEnv": "NPM_TOKEN",
       "access": "public",
       "dryRunSupport": "native",
       "mutability": "immutable",
-      "recovery": "publish-new-version"
+      "recovery": "publish-new-version",
+      "trustedPublishing": {
+        "provider": "github-actions",
+        "workflow": "release.yml",
+        "packageExists": true,
+        "verifyPackageExists": true
+      },
+      "provenance": true
     },
     {
       "_tag": "NpmRegistryTarget",
@@ -183,11 +213,17 @@
       "registry": "https://registry.npmjs.org",
       "packageName": "@nyc-transit-kit/nyc-open-data",
       "packagePath": ".release/npm/nyc-open-data",
-      "tokenEnv": "NPM_TOKEN",
       "access": "public",
       "dryRunSupport": "native",
       "mutability": "immutable",
-      "recovery": "publish-new-version"
+      "recovery": "publish-new-version",
+      "trustedPublishing": {
+        "provider": "github-actions",
+        "workflow": "release.yml",
+        "packageExists": true,
+        "verifyPackageExists": true
+      },
+      "provenance": true
     },
     {
       "_tag": "NpmRegistryTarget",
@@ -195,11 +231,17 @@
       "registry": "https://registry.npmjs.org",
       "packageName": "@nyc-transit-kit/compat",
       "packagePath": ".release/npm/compat",
-      "tokenEnv": "NPM_TOKEN",
       "access": "public",
       "dryRunSupport": "native",
       "mutability": "immutable",
-      "recovery": "publish-new-version"
+      "recovery": "publish-new-version",
+      "trustedPublishing": {
+        "provider": "github-actions",
+        "workflow": "release.yml",
+        "packageExists": true,
+        "verifyPackageExists": true
+      },
+      "provenance": true
     },
     {
       "_tag": "NpmRegistryTarget",
@@ -207,11 +249,17 @@
       "registry": "https://registry.npmjs.org",
       "packageName": "@nyc-transit-kit/cli",
       "packagePath": ".release/npm/cli",
-      "tokenEnv": "NPM_TOKEN",
       "access": "public",
       "dryRunSupport": "native",
       "mutability": "immutable",
-      "recovery": "publish-new-version"
+      "recovery": "publish-new-version",
+      "trustedPublishing": {
+        "provider": "github-actions",
+        "workflow": "release.yml",
+        "packageExists": true,
+        "verifyPackageExists": true
+      },
+      "provenance": true
     },
     {
       "_tag": "GitHubReleaseTarget",

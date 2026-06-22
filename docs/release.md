@@ -87,9 +87,9 @@ wiring outside committed manifests and restore the published package dependency
 before release-flow changes land.
 
 `release:plan` is safe: it renders the release plan and does not publish.
-`release:validate` may require the npm CLI, `NPM_TOKEN`, and `GH_TOKEN`. For
-local releases, authenticate GitHub however you prefer; if using `gh`, export
-the token explicitly:
+`release:validate` requires the npm CLI and `GH_TOKEN` for the GitHub release
+target. For local releases, authenticate GitHub however you prefer; if using
+`gh`, export the token explicitly:
 
 ```sh
 gh auth login
@@ -131,11 +131,12 @@ entry such as:
 //registry.npmjs.org/:_authToken=${NPM_TOKEN}
 ```
 
-In GitHub Actions, `actions/setup-node` can create a user `.npmrc`. The repo's
-`Release Dry Run` workflow also creates a temporary project `.npmrc` that
-expands `NPM_TOKEN`, because `ts-release` child npm commands are modeled around
-the `tokenEnv` configured in `release.config.json`. During token bootstrap,
-pass both `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` and
+In GitHub Actions, `actions/setup-node` can create a user `.npmrc`. Before the
+release config is switched to trusted publishing, the repo's `Release Dry Run`
+workflow also creates a temporary project `.npmrc` that expands `NPM_TOKEN`,
+because token-backed `ts-release` child npm commands are modeled around the
+`tokenEnv` configured in `release.config.json`. During token bootstrap, pass
+both `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` and
 `NPM_TOKEN: ${{ secrets.NPM_TOKEN }}`.
 
 Once the first package versions exist, configure trusted publishing for each
