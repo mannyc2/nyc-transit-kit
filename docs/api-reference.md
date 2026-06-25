@@ -301,9 +301,13 @@ Important exports include `queryNycOpenDataDataset`,
 `busLanesLocalStreetsDescriptor`, `dotTrafficSpeedsDescriptor`, and
 `trafficVolumeCountsDescriptor`.
 
-Use `knownNycOpenDataDatasets` and `findNycOpenDataDataset` as the scalable
-descriptor discovery surface. Raw descriptor records are private implementation
-details under the provider package.
+`knownNycOpenDataDatasets` and `findNycOpenDataDataset` are reserved for curated
+NYC Open Data descriptors not already owned by a narrower provider package.
+DOT datasets hosted on NYC Open Data live under `@nyc-transit-kit/nyc-dot`.
+Generic NYC Open Data query and export helpers still accept any Socrata dataset
+id on `data.cityofnewyork.us`.
+The DOT descriptor constants remain as deprecated compatibility aliases; new code
+should use `@nyc-transit-kit/nyc-dot/datasets`.
 
 NYC Open Data query with injected SODA3 fetch:
 
@@ -456,10 +460,10 @@ ntk socrata range-probe --domain data.ny.gov --dataset f462-ka72 --format csv --
 ntk catalog search --domain data.cityofnewyork.us --query "bus lanes" --json --dry-run
 ntk nyc-open-data catalog search --query "bus lanes" --json --dry-run
 ntk nyc-open-data dataset list --json
-ntk nyc-open-data dataset info --dataset ycrg-ses3 --json
 ntk nyc-open-data dataset query --dataset ycrg-ses3 --select "*" --json --dry-run
 ntk nyc-open-data dataset export --dataset ycrg-ses3 --format csv --output /tmp/rows.csv --json --dry-run
 ntk nyc-dot dataset list --json
+ntk nyc-dot dataset info --name bus-lanes-local-streets --json
 ntk nyc-dot dataset info --name traffic-speeds --json
 ntk nyc-dot dataset query --name traffic-speeds --select "*" --json --dry-run
 ntk nyc-dot dataset export --name traffic-speeds --format csv --output /tmp/dot.csv --json --dry-run

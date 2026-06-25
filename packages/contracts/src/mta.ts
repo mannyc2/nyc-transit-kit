@@ -103,8 +103,8 @@ export class MtaGtfsRealtimeProbeResult extends Schema.Class<MtaGtfsRealtimeProb
   feed: GtfsFeedKind,
   ok: Schema.Boolean,
   status: Schema.Number,
-  byteLength: Schema.Number,
-  decoded: Schema.optionalKey(Schema.Unknown)
+  byteLength: NonNegativeInteger,
+  decoded: Schema.optionalKey(MtaGtfsRealtimeDecodedSummary)
 }) {}
 
 export class MtaGtfsRealtimeCaptureManifest extends Schema.Class<MtaGtfsRealtimeCaptureManifest>(

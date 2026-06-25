@@ -38,30 +38,26 @@ describe("@nyc-transit-kit/nyc-open-data", () => {
     expect(defaultDomain).toBe("data.cityofnewyork.us")
   })
 
-  test("declares known dataset descriptors", () => {
-    expect(String(busLanesLocalStreetsDescriptor.id)).toBe("ycrg-ses3")
-    expect(findNycOpenDataDataset("ycrg-ses3")?.name).toBe("Bus Lanes - Local Streets")
-    expect(busLanesLocalStreetsDescriptor.sourceUrl).toBe(
-      "https://data.cityofnewyork.us/d/ycrg-ses3"
-    )
-    expect(busLanesLocalStreetsDescriptor.adapterStatus).toBe("none")
-    expect(String(busLanesLocalStreetsDescriptor.lastVerified)).toBe("2026-06-16")
-    expect(dotTrafficSpeedsDescriptor.temporalFields).toEqual(["data_as_of"])
-  })
-
-  test("keeps known dataset descriptors registry-safe", () => {
+  test("keeps provider-owned datasets out of the generic descriptor registry", () => {
     const datasetIds = knownNycOpenDataDatasets.map((dataset) => String(dataset.id))
 
-    expect(knownNycOpenDataDatasets.length).toBeGreaterThan(0)
+    expect(knownNycOpenDataDatasets).toEqual([])
+    expect(findNycOpenDataDataset("ycrg-ses3")).toBeUndefined()
+    expect(findNycOpenDataDataset("i4gi-tjb9")).toBeUndefined()
+    expect(findNycOpenDataDataset("btm5-ppia")).toBeUndefined()
     expect(new Set(datasetIds).size).toBe(datasetIds.length)
-    expect(String(busLanesLocalStreetsDescriptor.id)).toBe("ycrg-ses3")
-    expect(String(dotTrafficSpeedsDescriptor.id)).toBe("i4gi-tjb9")
-    expect(String(trafficVolumeCountsDescriptor.id)).toBe("btm5-ppia")
 
     for (const dataset of knownNycOpenDataDatasets) {
       expect(String(dataset.domain)).toBe(defaultDomain)
       expect(dataset.backing).toBe("socrata")
     }
+  })
+
+  test("keeps deprecated DOT descriptor aliases outside the generic registry", () => {
+    expect(String(busLanesLocalStreetsDescriptor.id)).toBe("ycrg-ses3")
+    expect(String(dotTrafficSpeedsDescriptor.id)).toBe("i4gi-tjb9")
+    expect(String(trafficVolumeCountsDescriptor.id)).toBe("btm5-ppia")
+    expect(knownNycOpenDataDatasets).not.toContain(busLanesLocalStreetsDescriptor)
   })
 
   test("delegates dataset queries through SODA3", async () => {

@@ -508,7 +508,7 @@ describe("@nyc-transit-kit/cli", () => {
 
     const openDataData = isRecord(openData.json) ? openData.json.data : undefined
     const dotData = isRecord(dot.json) ? dot.json.data : undefined
-    expect(isRecord(openDataData) ? openDataData.known : undefined).toBe(true)
+    expect(isRecord(openDataData) ? openDataData.known : undefined).toBe(false)
     expect(isRecord(dotData) ? dotData.name : undefined).toBe("traffic-speeds")
   })
 

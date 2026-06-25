@@ -9,9 +9,6 @@ import {
   querySoda3Rows
 } from "../src/index"
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
-
 type FetchInput = Parameters<typeof fetch>[0]
 type FetchInit = Parameters<typeof fetch>[1]
 type FetchHandler = (input: FetchInput, init?: FetchInit) => ReturnType<typeof fetch>
@@ -20,6 +17,9 @@ const makeFetch = (handler: FetchHandler): typeof fetch =>
   Object.assign(handler, {
     preconnect: fetch.preconnect
   })
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null
 
 const syntheticGtfsRealtimeBytes = () =>
   new Uint8Array([
@@ -84,10 +84,9 @@ describe("@nyc-transit-kit/compat", () => {
         fetch: makeFetch(async () => new Response(syntheticGtfsRealtimeBytes(), { status: 200 }))
       }
     )
-    const decoded = result.decoded
 
-    expect(isRecord(decoded) ? decoded.entityCount : undefined).toBe(3)
-    expect(isRecord(decoded) ? decoded.alertCount : undefined).toBe(1)
+    expect(result.decoded?.entityCount).toBe(3)
+    expect(result.decoded?.alertCount).toBe(1)
   })
 
   test("wraps NYC DOT delegation with promises", async () => {

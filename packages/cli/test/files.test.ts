@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { mkdir, rm } from "node:fs/promises"
+import { mkdir, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import * as Effect from "effect/Effect"
 import { writeResponseToFile } from "../src/commands/soda3-shared"
-import { atomicWrite } from "../src/files"
+import { atomicWrite, atomicWriteGroup } from "../src/files"
 
 const makeTempDirectory = async () => {
   const path = join(tmpdir(), `ntk-files-test-${process.pid}-${Date.now()}`)
@@ -34,6 +34,59 @@ describe("CLI file helpers", () => {
       await atomicWrite(path, new Uint8Array([1, 2, 3]))
 
       expect([...new Uint8Array(await Bun.file(path).arrayBuffer())]).toEqual([1, 2, 3])
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  test("atomically writes grouped artifacts", async () => {
+    const directory = await makeTempDirectory()
+    const payloadPath = join(directory, "capture.pb")
+    const manifestPath = join(directory, "capture.manifest.json")
+
+    try {
+      await atomicWriteGroup([
+        {
+          path: payloadPath,
+          body: new Uint8Array([1, 2, 3])
+        },
+        {
+          path: manifestPath,
+          body: '{"ok":true}\n'
+        }
+      ])
+
+      expect([...new Uint8Array(await Bun.file(payloadPath).arrayBuffer())]).toEqual([1, 2, 3])
+      expect(await Bun.file(manifestPath).text()).toBe('{"ok":true}\n')
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  test("rolls back grouped artifacts when a later target cannot commit", async () => {
+    const directory = await makeTempDirectory()
+    const payloadPath = join(directory, "capture.pb")
+    const manifestPath = join(directory, "capture.manifest.json")
+
+    try {
+      await Bun.write(payloadPath, "old-payload")
+      await mkdir(manifestPath)
+
+      await expect(
+        atomicWriteGroup([
+          {
+            path: payloadPath,
+            body: "new-payload"
+          },
+          {
+            path: manifestPath,
+            body: '{"ok":true}\n'
+          }
+        ])
+      ).rejects.toThrow("Atomic write target is a directory")
+
+      expect(await Bun.file(payloadPath).text()).toBe("old-payload")
+      expect((await stat(manifestPath)).isDirectory()).toBe(true)
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

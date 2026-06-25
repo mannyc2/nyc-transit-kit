@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import type {
-  MtaGtfsRealtimeProbeRequestInput,
-  MtaGtfsStaticFetchRequestInput
+import {
+  MtaGtfsRealtimeDecodedSummary,
+  type MtaGtfsRealtimeProbeRequestInput,
+  type MtaGtfsStaticFetchRequestInput
 } from "@nyc-transit-kit/contracts/mta"
 import { Soda3ClientConfig } from "@nyc-transit-kit/soda3/client"
 import * as Effect from "effect/Effect"
@@ -65,9 +66,6 @@ const syntheticGtfsRealtimeBytes = () =>
       ]
     })
   ).finish()
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
 
 const gtfsStaticFixture = {
   url: "https://new.mta.info/feed.zip"
@@ -173,10 +171,18 @@ describe("@nyc-transit-kit/mta", () => {
     )
     const decoderLayer = Layer.succeed(GtfsRealtimeDecoder)({
       decode: (bytes, feed) =>
-        Effect.succeed({
-          feed,
-          decodedBytes: bytes.byteLength
-        })
+        Effect.succeed(
+          MtaGtfsRealtimeDecodedSummary.make({
+            feed,
+            entityCount: bytes.byteLength,
+            tripUpdateCount: 0,
+            vehiclePositionCount: 0,
+            alertCount: 0,
+            raw: {
+              decodedBytes: bytes.byteLength
+            }
+          })
+        )
     })
 
     const result = await Effect.runPromise(
@@ -187,6 +193,39 @@ describe("@nyc-transit-kit/mta", () => {
 
     expect(result.byteLength).toBe(3)
     expect(result.feed).toBe("vehicle-positions")
+    expect(result.decoded?.entityCount).toBe(3)
+  })
+
+  test("reports non-2xx GTFS realtime probes without decoding", async () => {
+    let decodeCalls = 0
+    const httpLayer = fetchLayer(async () => new Response("unavailable", { status: 503 }))
+    const decoderLayer = Layer.succeed(GtfsRealtimeDecoder)({
+      decode: () => {
+        decodeCalls += 1
+        return Effect.succeed(
+          MtaGtfsRealtimeDecodedSummary.make({
+            feed: "vehicle-positions",
+            entityCount: 0,
+            tripUpdateCount: 0,
+            vehiclePositionCount: 0,
+            alertCount: 0,
+            raw: {}
+          })
+        )
+      }
+    })
+
+    const result = await Effect.runPromise(
+      probeGtfsRealtime(gtfsRealtimeFixture).pipe(
+        Effect.provide(Layer.mergeAll(httpLayer, decoderLayer))
+      )
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(503)
+    expect(result.byteLength).toBe(11)
+    expect(result.decoded).toBeUndefined()
+    expect(decodeCalls).toBe(0)
   })
 
   test("captures GTFS realtime raw bytes with manifest metadata", async () => {
@@ -251,11 +290,10 @@ describe("@nyc-transit-kit/mta", () => {
         Effect.provide(Layer.mergeAll(httpLayer, GtfsRealtimeDecoder.Live))
       )
     )
-    const decoded = result.decoded
 
     expect(result.byteLength).toBeGreaterThan(0)
-    expect(isRecord(decoded) ? decoded.entityCount : undefined).toBe(3)
-    expect(isRecord(decoded) ? decoded.vehiclePositionCount : undefined).toBe(1)
+    expect(result.decoded?.entityCount).toBe(3)
+    expect(result.decoded?.vehiclePositionCount).toBe(1)
   })
 
   test("delegates MTA Open Data queries through SODA3", async () => {

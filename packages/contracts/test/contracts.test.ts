@@ -14,6 +14,7 @@ import {
   MtaGtfsRealtimeCaptureRequest,
   MtaGtfsRealtimeCaptureResult,
   MtaGtfsRealtimeDecodedSummary,
+  MtaGtfsRealtimeProbeResult,
   MtaOpenDataDatasetDescriptor,
   makeDescriptorRegistry,
   NycDotBusLaneRow,
@@ -320,9 +321,31 @@ describe("@nyc-transit-kit/contracts", () => {
       url: "https://api-endpoint.mta.info/realtime.pb?key=REDACTED",
       bytes: new Uint8Array([1, 2, 3])
     })
+    const probeResult = MtaGtfsRealtimeProbeResult.make({
+      feed: "vehicle-positions",
+      ok: true,
+      status: 200,
+      byteLength: 3,
+      decoded: realtimeSummary
+    })
 
     expect(String(mtaDescriptor.id)).toBe("f462-ka72")
     expect(captureRequest.feed).toBe("vehicle-positions")
+    expect(Schema.is(MtaGtfsRealtimeProbeResult)(probeResult)).toBe(true)
+    expect(Schema.is(MtaGtfsRealtimeProbeResult)({ ...probeResult, byteLength: -1 })).toBe(false)
+    expect(
+      Schema.is(MtaGtfsRealtimeProbeResult)({
+        ...probeResult,
+        decoded: {
+          feed: "vehicle-positions",
+          entityCount: -1,
+          tripUpdateCount: 0,
+          vehiclePositionCount: 0,
+          alertCount: 0,
+          raw: {}
+        }
+      })
+    ).toBe(false)
     expect(Schema.is(MtaGtfsRealtimeCaptureManifest)(captureManifest)).toBe(true)
     expect(Schema.is(MtaGtfsRealtimeCaptureResult)(captureResult)).toBe(true)
     expect(

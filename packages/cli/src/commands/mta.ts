@@ -19,7 +19,7 @@ import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Command from "effect/unstable/cli/Command"
 import * as Flag from "effect/unstable/cli/Flag"
-import { atomicWrite } from "../files"
+import { atomicWriteGroup } from "../files"
 import { failCommand, missingOption, runEffect, soqlFromSelect, writeSuccess } from "./shared"
 import { fileWriteError, writeResponseToFile, writeSoda3QueryDryRun } from "./soda3-shared"
 import { CliCommandContext, type CommandContext } from "./types"
@@ -436,11 +436,17 @@ export const handleMtaGtfsRealtimeCapture = (config: {
         })
 
         yield* Effect.tryPromise({
-          try: () => atomicWrite(config.output, result.bytes),
-          catch: fileWriteError
-        })
-        yield* Effect.tryPromise({
-          try: () => atomicWrite(config.manifestOutput, `${JSON.stringify(manifest, null, 2)}\n`),
+          try: () =>
+            atomicWriteGroup([
+              {
+                path: config.output,
+                body: result.bytes
+              },
+              {
+                path: config.manifestOutput,
+                body: `${JSON.stringify(manifest, null, 2)}\n`
+              }
+            ]),
           catch: fileWriteError
         })
 

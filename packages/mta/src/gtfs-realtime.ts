@@ -22,7 +22,7 @@ import { MtaDecodeError, MtaHttpError, MtaInvalidInputError } from "./errors"
 export type GtfsRealtimeDecoderImplementation = (
   bytes: Uint8Array,
   feed: GtfsFeedKind
-) => Effect.Effect<unknown, MtaDecodeError>
+) => Effect.Effect<MtaGtfsRealtimeDecodedSummary, MtaDecodeError>
 export type { MtaGtfsRealtimeCaptureRequestInput, MtaGtfsRealtimeProbeRequestInput }
 
 const FeedMessage = GtfsRealtimeBindings.transit_realtime.FeedMessage
@@ -133,10 +133,18 @@ export class GtfsRealtimeDecoder extends Context.Service<
   // Test/custom fallback for callers that want to bypass protobuf decoding.
   static readonly Passthrough = Layer.succeed(GtfsRealtimeDecoder)({
     decode: (bytes, feed) =>
-      Effect.succeed({
-        feed,
-        byteLength: bytes.byteLength
-      })
+      Effect.succeed(
+        MtaGtfsRealtimeDecodedSummary.make({
+          feed,
+          entityCount: 0,
+          tripUpdateCount: 0,
+          vehiclePositionCount: 0,
+          alertCount: 0,
+          raw: {
+            byteLength: bytes.byteLength
+          }
+        })
+      )
   })
 }
 
@@ -158,6 +166,7 @@ const decodeRealtimeProbeRequest = decodeRealtimeInput(MtaGtfsRealtimeProbeReque
 const decodeRealtimeCaptureRequest = decodeRealtimeInput(MtaGtfsRealtimeCaptureRequest)
 
 const httpStatusText = (status: number) => `HTTP ${status}`
+const isOkStatus = (status: number) => status >= 200 && status < 300
 
 const mapMtaHttpClientError = (operation: string, error: HttpClientError.HttpClientError) => {
   const response = error.response
@@ -177,6 +186,13 @@ const mapMtaHttpClientError = (operation: string, error: HttpClientError.HttpCli
   })
 }
 
+const failGtfsRealtimeStatus = (status: number) =>
+  MtaHttpError.make({
+    operation: "gtfs-realtime",
+    status,
+    statusText: httpStatusText(status)
+  })
+
 const fetchGtfsRealtimeBytes = Effect.fn("Mta.fetchGtfsRealtimeBytes")(function* (request: {
   readonly feed: GtfsFeedKind
   readonly url: string
@@ -184,14 +200,6 @@ const fetchGtfsRealtimeBytes = Effect.fn("Mta.fetchGtfsRealtimeBytes")(function*
   const response = yield* HttpClient.execute(HttpClientRequest.get(request.url)).pipe(
     Effect.mapError((error) => mapMtaHttpClientError("gtfs-realtime", error))
   )
-
-  if (response.status < 200 || response.status >= 300) {
-    return yield* MtaHttpError.make({
-      operation: "gtfs-realtime",
-      status: response.status,
-      statusText: httpStatusText(response.status)
-    })
-  }
 
   const buffer = yield* response.arrayBuffer.pipe(
     Effect.mapError(() =>
@@ -229,11 +237,21 @@ export const probeGtfsRealtime = Effect.fn("Mta.probeGtfsRealtime")(function* (
   const request = yield* decodeRealtimeProbeRequest(input)
   const decoder = yield* GtfsRealtimeDecoder
   const { response, bytes } = yield* fetchGtfsRealtimeBytes(request)
+
+  if (!isOkStatus(response.status)) {
+    return MtaGtfsRealtimeProbeResult.make({
+      feed: request.feed,
+      ok: false,
+      status: response.status,
+      byteLength: bytes.byteLength
+    })
+  }
+
   const decoded = yield* decoder.decode(bytes, request.feed)
 
   return MtaGtfsRealtimeProbeResult.make({
     feed: request.feed,
-    ok: response.status >= 200 && response.status < 300,
+    ok: true,
     status: response.status,
     byteLength: bytes.byteLength,
     decoded
@@ -245,6 +263,11 @@ export const captureGtfsRealtime = Effect.fn("Mta.captureGtfsRealtime")(function
 ) {
   const request = yield* decodeRealtimeCaptureRequest(input)
   const { response, bytes } = yield* fetchGtfsRealtimeBytes(request)
+
+  if (!isOkStatus(response.status)) {
+    return yield* failGtfsRealtimeStatus(response.status)
+  }
+
   const sha256 = yield* sha256Hex(bytes, request.feed)
 
   return MtaGtfsRealtimeCaptureResult.make({
