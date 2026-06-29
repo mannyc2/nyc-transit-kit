@@ -1,3 +1,4 @@
+import type { DatasetDescriptorAdapterStatus } from "@nyc-transit-kit/contracts/metadata"
 import type { GtfsFeedKind } from "@nyc-transit-kit/contracts/mta"
 import {
   mtaGtfsRealtimeFeedRecords,
@@ -35,6 +36,7 @@ export interface MtaJsonDirectFeedDescriptor extends MtaDirectFeedDescriptor {
   readonly surface: "service-alerts" | "elevator-escalator" | "bus-time"
   readonly format: "json" | "xml"
   readonly requiresApiKey?: boolean
+  readonly adapterStatus?: DatasetDescriptorAdapterStatus
 }
 
 export const mtaGtfsStaticFeeds = mtaGtfsStaticFeedRecords
@@ -67,3 +69,5 @@ const findFeed = <Feed extends MtaDirectFeedDescriptor>(
 export const findMtaGtfsStaticFeed = (key: string) => findFeed(mtaGtfsStaticFeeds, key)
 
 export const findMtaGtfsRealtimeFeed = (key: string) => findFeed(mtaGtfsRealtimeFeeds, key)
+
+export const findMtaJsonDirectFeed = (key: string) => findFeed(mtaJsonDirectFeeds, key)

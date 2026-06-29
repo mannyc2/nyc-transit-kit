@@ -31,3 +31,26 @@ export const sampleSocrataCatalogResponse = {
   ],
   resultCount: 1
 }
+
+export const sampleMtaOpenDataCatalogRow = {
+  "Open Dataset ID": "f462-ka72",
+  Name: "MTA Open Data Catalog",
+  Description: "Synthetic row for the MTA Open Data catalog adapter."
+}
+
+export const sampleMtaElevatorEscalatorCurrentJson = [
+  {
+    station: "Example Station",
+    borough: "M",
+    trainno: "A/C/E",
+    equipment: "EL001",
+    equipmenttype: "EL",
+    serving: "street to mezzanine",
+    ADA: "Y",
+    outagedate: "01/01/2026 12:00:00 AM",
+    estimatedreturntoservice: "01/02/2026 12:00:00 AM",
+    reason: "Repair",
+    isupcomingoutage: "N",
+    ismaintenanceoutage: "N"
+  }
+]

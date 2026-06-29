@@ -7,6 +7,7 @@ export {
   mtaOpenDataDatasets,
   mtaOpenDataDomain
 } from "./datasets"
+export { decodeMtaElevatorEscalatorCurrent } from "./elevator-escalator"
 export type { MtaError } from "./errors"
 export { MtaDecodeError, MtaHttpError, MtaInvalidInputError } from "./errors"
 export type {
@@ -19,6 +20,7 @@ export type {
 export {
   findMtaGtfsRealtimeFeed,
   findMtaGtfsStaticFeed,
+  findMtaJsonDirectFeed,
   mtaDirectFeeds,
   mtaGtfsRealtimeFeeds,
   mtaGtfsStaticFeeds,
@@ -41,4 +43,10 @@ export {
   MtaHttpLive,
   probeGtfsStatic
 } from "./gtfs-static"
+export type { MtaJsonDirectFetchRequestInput } from "./json-direct"
+export { fetchMtaJsonDirect, redactMtaJsonDirectUrl } from "./json-direct"
 export { queryMtaOpenData } from "./open-data"
+export {
+  decodeMtaOpenDataCatalogRow,
+  decodeMtaOpenDataCatalogRows
+} from "./open-data-catalog"

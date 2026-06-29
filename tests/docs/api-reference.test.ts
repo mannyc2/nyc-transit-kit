@@ -6,6 +6,7 @@ import { join } from "node:path"
 const rootPath = new URL("../../", import.meta.url).pathname
 const packageRoot = join(rootPath, "packages")
 const apiReferencePath = join(rootPath, "docs", "api-reference.md")
+const gettingStartedPath = join(rootPath, "docs", "getting-started.md")
 const providerCoveragePath = join(rootPath, "docs", "provider-coverage.md")
 const readmePath = join(rootPath, "README.md")
 const cliRuntimePath = join(rootPath, "packages", "cli", "src", "runtime.ts")
@@ -56,12 +57,30 @@ const importPathFor = (packageName: string, exportKey: string) =>
 const typeScriptFences = (source: string) =>
   [...source.matchAll(/```(?:ts|typescript)\n([\s\S]*?)```/g)].map((match) => match[1] ?? "")
 
+type NamedTypeScriptFence = {
+  readonly sourceName: string
+  readonly index: number
+  readonly code: string
+}
+
+const namedTypeScriptFences = (sourceName: string, source: string) =>
+  typeScriptFences(source).map((code, index) => ({
+    sourceName,
+    index: index + 1,
+    code
+  }))
+
+const docsTypeScriptFences = async () => [
+  ...namedTypeScriptFences("docs/api-reference.md", await Bun.file(apiReferencePath).text()),
+  ...namedTypeScriptFences("docs/getting-started.md", await Bun.file(gettingStartedPath).text())
+]
+
 const cliEnvVars = (source: string) =>
   [...source.matchAll(/\benv\.([A-Z][A-Z0-9_]*)\b/g)]
     .map((match) => match[1])
     .filter((value): value is string => value !== undefined)
 
-const typecheckTypeScriptFences = async (fences: ReadonlyArray<string>) => {
+const typecheckTypeScriptFences = async (fences: ReadonlyArray<NamedTypeScriptFence>) => {
   const tempDirectory = await mkdtemp(join(tmpdir(), "ntk-docs-examples-"))
 
   try {
@@ -71,9 +90,13 @@ const typecheckTypeScriptFences = async (fences: ReadonlyArray<string>) => {
       : {}
     const paths = isRecord(compilerOptions.paths) ? compilerOptions.paths : {}
     const files = await Promise.all(
-      fences.map(async (fence, index) => {
-        const path = join(tempDirectory, `api-reference-example-${index + 1}.ts`)
-        await Bun.write(path, fence)
+      fences.map(async (fence) => {
+        const sourceSlug = fence.sourceName
+          .replace(/[^a-z0-9]+/gi, "-")
+          .replace(/^-+|-+$/g, "")
+          .toLowerCase()
+        const path = join(tempDirectory, `${sourceSlug}-example-${fence.index}.ts`)
+        await Bun.write(path, fence.code)
         return path
       })
     )
@@ -114,10 +137,14 @@ const typecheckTypeScriptFences = async (fences: ReadonlyArray<string>) => {
     const exitCode = await proc.exited
 
     if (exitCode !== 0) {
+      const generatedFiles = files.map((file, index) => {
+        const fence = fences[index]
+        return fence === undefined ? file : `${fence.sourceName} fence ${fence.index}: ${file}`
+      })
       throw new Error(
         [
           "API reference TypeScript examples failed to typecheck.",
-          `Generated files: ${files.join(", ")}`,
+          `Generated files: ${generatedFiles.join(", ")}`,
           stdout.trim(),
           stderr.trim()
         ]
@@ -166,7 +193,22 @@ const importSmokeCases: ReadonlyArray<{
   {
     importPath: "@nyc-transit-kit/mta/feeds",
     packageDirectory: "mta",
-    exports: ["mtaGtfsStaticFeeds", "mtaGtfsRealtimeFeeds", "findMtaGtfsRealtimeFeed"]
+    exports: ["mtaGtfsStaticFeeds", "mtaGtfsRealtimeFeeds", "findMtaJsonDirectFeed"]
+  },
+  {
+    importPath: "@nyc-transit-kit/mta/json-direct",
+    packageDirectory: "mta",
+    exports: ["fetchMtaJsonDirect", "redactMtaJsonDirectUrl"]
+  },
+  {
+    importPath: "@nyc-transit-kit/mta/open-data-catalog",
+    packageDirectory: "mta",
+    exports: ["decodeMtaOpenDataCatalogRow"]
+  },
+  {
+    importPath: "@nyc-transit-kit/mta/elevator-escalator",
+    packageDirectory: "mta",
+    exports: ["decodeMtaElevatorEscalatorCurrent"]
   },
   {
     importPath: "@nyc-transit-kit/nyc-open-data/client",
@@ -261,15 +303,15 @@ describe("API reference docs", () => {
       .map((manifest) => manifest.packageName)
     const offenders: Array<string> = []
 
-    for (const [index, fence] of typeScriptFences(
-      await Bun.file(apiReferencePath).text()
-    ).entries()) {
+    for (const fence of await docsTypeScriptFences()) {
       for (const packageName of packagesWithSubpaths) {
         const rootImportPattern = new RegExp(
           `(?:from\\s+["']${packageName}["']|import\\(\\s*["']${packageName}["']\\s*\\))`
         )
-        if (rootImportPattern.test(fence)) {
-          offenders.push(`code fence ${index + 1}: imports ${packageName} root`)
+        if (rootImportPattern.test(fence.code)) {
+          offenders.push(
+            `${fence.sourceName} code fence ${fence.index}: imports ${packageName} root`
+          )
         }
       }
     }
@@ -278,10 +320,9 @@ describe("API reference docs", () => {
   })
 
   test("does not include legacy Socrata endpoint examples", async () => {
-    const offenders = typeScriptFences(await Bun.file(apiReferencePath).text())
-      .map((fence, index) => ({ fence, index }))
-      .filter(({ fence }) => fence.includes("/resource/"))
-      .map(({ index }) => `code fence ${index + 1}`)
+    const offenders = (await docsTypeScriptFences())
+      .filter((fence) => fence.code.includes("/resource/"))
+      .map((fence) => `${fence.sourceName} code fence ${fence.index}`)
 
     expect(offenders).toEqual([])
   })
@@ -316,6 +357,6 @@ describe("API reference docs", () => {
   })
 
   test("typechecks TypeScript examples", async () => {
-    await typecheckTypeScriptFences(typeScriptFences(await Bun.file(apiReferencePath).text()))
+    await typecheckTypeScriptFences(await docsTypeScriptFences())
   })
 })

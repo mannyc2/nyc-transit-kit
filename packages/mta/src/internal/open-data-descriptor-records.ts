@@ -9,7 +9,7 @@ export const mtaOpenDataDescriptorRecords = [
     description: "MTA Open Data catalog entry surfaced through NYS Open Data.",
     sourceUrl: "https://data.ny.gov/d/f462-ka72",
     tags: ["transportation", "transit", "catalog"],
-    adapterStatus: "none",
+    adapterStatus: "row-schema",
     lastVerified: "2026-06-16"
   }
 ] satisfies ReadonlyArray<MtaOpenDataDatasetDescriptorInput>

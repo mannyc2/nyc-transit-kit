@@ -32,6 +32,68 @@ const descriptorGroups = [
   }
 ]
 
+const runProviderCoverageSet = async (
+  entries: ReadonlyArray<{
+    readonly provider: CoverageProvider
+    readonly input: unknown
+  }>
+) => {
+  const tempDirectory = await mkdtemp(join(tmpdir(), "ntk-provider-coverage-set-"))
+
+  try {
+    const providers = await Promise.all(
+      entries.map(async (entry, index) => {
+        const inputPath = join(tempDirectory, `${index}-${entry.provider}.json`)
+        await Bun.write(inputPath, JSON.stringify(entry.input))
+        return {
+          provider: entry.provider,
+          input: inputPath
+        }
+      })
+    )
+    const manifestPath = join(tempDirectory, "manifest.json")
+    const outPath = join(tempDirectory, "provider-coverage.json")
+    await Bun.write(
+      manifestPath,
+      JSON.stringify({
+        providers
+      })
+    )
+    const proc = Bun.spawn(
+      [
+        "bun",
+        "run",
+        "scripts/check-provider-coverage-set.ts",
+        "--manifest",
+        manifestPath,
+        "--out",
+        outPath
+      ],
+      {
+        cwd: rootPath,
+        stderr: "pipe",
+        stdout: "pipe"
+      }
+    )
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+    const exitCode = await proc.exited
+    const parsed: unknown = JSON.parse(await Bun.file(outPath).text())
+
+    return {
+      exitCode,
+      json: parsed,
+      stderr,
+      stdout
+    }
+  } finally {
+    await rm(tempDirectory, {
+      recursive: true,
+      force: true
+    })
+  }
+}
+
 describe("provider ownership", () => {
   test("keeps provider descriptor registries SODA3-backed and locally unique", () => {
     expect(nycDotDatasets.length, "nyc-dot").toBeGreaterThan(0)
@@ -265,6 +327,62 @@ describe("provider ownership", () => {
     expect(json.expectedCount).toBe(uniqueLocalIds.length)
     expect(json.localCount).toBe(uniqueLocalIds.length)
     expect(json.ok).toBe(true)
+  })
+
+  test("checks provider coverage release sets", async () => {
+    const uniqueLocalIds = uniqueSortedStrings(mtaDirectFeeds.map((feed) => feed.id))
+    const result = await runProviderCoverageSet([
+      {
+        provider: "mta-direct",
+        input: mtaDirectFeeds.map((feed) => ({
+          id: feed.id,
+          url: feed.url
+        }))
+      }
+    ])
+    const json = isRecord(result.json) ? result.json : {}
+    const providers = Array.isArray(json.providers) ? json.providers : []
+    const firstProvider = isRecord(providers[0]) ? providers[0] : {}
+
+    expect(result.stderr.trim()).toBe("")
+    expect(result.exitCode).toBe(0)
+    expect(json.ok).toBe(true)
+    expect(typeof json.generatedAt).toBe("string")
+    expect(firstProvider.provider).toBe("mta-direct")
+    expect(firstProvider.expectedCount).toBe(uniqueLocalIds.length)
+    expect(firstProvider.localCount).toBe(uniqueLocalIds.length)
+    expect(firstProvider.ok).toBe(true)
+  })
+
+  test("writes provider coverage release evidence when one provider fails", async () => {
+    const missingId = "synthetic-missing-feed"
+    const result = await runProviderCoverageSet([
+      {
+        provider: "mta-direct",
+        input: [
+          ...mtaDirectFeeds.map((feed) => ({
+            id: feed.id,
+            url: feed.url
+          })),
+          {
+            id: missingId,
+            url: "https://example.test/feed"
+          }
+        ]
+      }
+    ])
+    const json = isRecord(result.json) ? result.json : {}
+    const providers = Array.isArray(json.providers) ? json.providers : []
+    const firstProvider = isRecord(providers[0]) ? providers[0] : {}
+
+    expect(result.stderr.trim()).toBe("")
+    expect(result.exitCode).toBe(1)
+    expect(json.ok).toBe(false)
+    expect(firstProvider.provider).toBe("mta-direct")
+    expect(firstProvider.ok).toBe(false)
+    expect(Array.isArray(firstProvider.missingIds) ? firstProvider.missingIds : []).toContain(
+      missingId
+    )
   })
 
   test("reports missing MTA direct feed ids", async () => {

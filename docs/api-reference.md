@@ -4,6 +4,9 @@ This is the public API reference for the current v0 `nyc-transit-kit`
 workspace. It covers the source-first package exports that exist in this
 repository today.
 
+For task-oriented adoption examples, start with
+[Getting Started](getting-started.md).
+
 Package-root imports are convenience paths for exploration. Prefer package
 subpaths in application and package code so bundlers get the clearest
 tree-shaking boundary.
@@ -42,7 +45,10 @@ Important exports include `Soda3QueryRequest`, `Soda3QueryResponse`,
 `Soda3ExportRequest`, `Soda3CatalogSearchResponse`, `MtaGtfsStaticFetchRequest`,
 `MtaGtfsRealtimeProbeResult`, `MtaGtfsRealtimeDecodedSummary`,
 `MtaGtfsRealtimeCaptureRequest`, `MtaGtfsRealtimeCaptureManifest`,
-`MtaGtfsRealtimeCaptureResult`,
+`MtaGtfsRealtimeCaptureResult`, `MtaJsonDirectSurface`,
+`MtaJsonDirectFetchRequest`, `MtaJsonDirectFetchResult`,
+`MtaOpenDataCatalogRow`, `MtaElevatorEscalatorCurrentRow`,
+`MtaElevatorEscalatorCurrent`,
 `NycOpenDataDatasetDescriptor`, `NycDotDatasetDescriptor`,
 `DatasetDescriptorAdapterStatus`, `DescriptorMetadataFields`,
 `makeDescriptorRegistry`, `CliEnvelope`, and `CliReleaseManifest`.
@@ -192,18 +198,25 @@ helpers. MTA Open Data access delegates through SODA3.
 | `@nyc-transit-kit/mta/gtfs-static` | GTFS static fetch/probe operations and `MtaHttpLive`. |
 | `@nyc-transit-kit/mta/gtfs-realtime` | GTFS realtime probe operation and decoder service. |
 | `@nyc-transit-kit/mta/feeds` | MTA direct feed descriptors and lookup helpers. |
+| `@nyc-transit-kit/mta/json-direct` | Raw JSON direct-feed fetch helper for service-alert, elevator/escalator, and Bus Time surfaces. |
 | `@nyc-transit-kit/mta/open-data` | MTA Open Data SODA3-backed query helper. |
+| `@nyc-transit-kit/mta/open-data-catalog` | MTA Open Data catalog row decoder. |
+| `@nyc-transit-kit/mta/elevator-escalator` | Elevator/escalator current JSON row decoder. |
 | `@nyc-transit-kit/mta/datasets` | MTA Open Data descriptors and lookup helpers. |
 | `@nyc-transit-kit/mta/errors` | MTA typed errors. |
 
 Important exports include `MtaHttpLive`, `probeGtfsStatic`,
 `fetchGtfsStatic`, `fetchGtfsStaticResponse`,
 `GtfsRealtimeDecoder`, `GtfsRealtimeDecoderImplementation`,
-`decodeGtfsRealtimeBytes`, `probeGtfsRealtime`, `captureGtfsRealtime`, `queryMtaOpenData`,
+`decodeGtfsRealtimeBytes`, `probeGtfsRealtime`, `captureGtfsRealtime`,
+`fetchMtaJsonDirect`, `redactMtaJsonDirectUrl`, `queryMtaOpenData`,
+`decodeMtaOpenDataCatalogRow`, `decodeMtaOpenDataCatalogRows`,
+`decodeMtaElevatorEscalatorCurrent`,
 `mtaOpenDataDomain`, `mtaOpenDataCatalogDescriptor`, `mtaOpenDataDatasets`,
 `findMtaOpenDataDataset`, `mtaGtfsStaticFeeds`, `mtaGtfsRealtimeFeeds`,
-`mtaDirectFeeds`, `findMtaGtfsStaticFeed`, `findMtaGtfsRealtimeFeed`,
-`MtaInvalidInputError`, `MtaHttpError`, `MtaDecodeError`, and `MtaError`.
+`mtaJsonDirectFeeds`, `mtaDirectFeeds`, `findMtaGtfsStaticFeed`,
+`findMtaGtfsRealtimeFeed`, `findMtaJsonDirectFeed`, `MtaInvalidInputError`,
+`MtaHttpError`, `MtaDecodeError`, and `MtaError`.
 
 Use `mtaOpenDataDatasets` and `findMtaOpenDataDataset` as the scalable
 descriptor discovery surface. Existing named descriptor constants remain
@@ -279,6 +292,58 @@ const program = captureGtfsRealtime({
   feed: "trip-updates",
   url: "https://api-endpoint.mta.info/realtime.pb?key=secret"
 }).pipe(Effect.provide(MtaHttpLive))
+```
+
+Raw MTA JSON direct feeds fetch provider JSON without normalizing the payload.
+API keys are supplied explicitly and redacted from returned metadata.
+
+```ts
+import { findMtaJsonDirectFeed } from "@nyc-transit-kit/mta/feeds"
+import { fetchMtaJsonDirect } from "@nyc-transit-kit/mta/json-direct"
+import { MtaHttpLive } from "@nyc-transit-kit/mta/gtfs-static"
+import * as Effect from "effect/Effect"
+
+const feed = findMtaJsonDirectFeed("bus-time-vehicle-monitoring")
+
+const program =
+  feed === undefined
+    ? Effect.succeed(undefined)
+    : fetchMtaJsonDirect({
+        surface: feed.surface,
+        url: feed.url,
+        apiKey: "example-token",
+        query: {
+          LineRef: "MTA NYCT_M15"
+        }
+      }).pipe(Effect.provide(MtaHttpLive))
+```
+
+Selected MTA adapters decode provider DTO fragments without adding downstream
+analytics or normalized business meaning.
+
+```ts
+import { decodeMtaOpenDataCatalogRow } from "@nyc-transit-kit/mta/open-data-catalog"
+import { decodeMtaElevatorEscalatorCurrent } from "@nyc-transit-kit/mta/elevator-escalator"
+import * as Effect from "effect/Effect"
+
+const program = Effect.gen(function* () {
+  const catalogRow = yield* decodeMtaOpenDataCatalogRow({
+    "Open Dataset ID": "f462-ka72",
+    Name: "MTA Open Data Catalog"
+  })
+  const elevatorRows = yield* decodeMtaElevatorEscalatorCurrent([
+    {
+      station: "Example Station",
+      equipment: "EL001",
+      equipmenttype: "EL"
+    }
+  ])
+
+  return {
+    catalogRow,
+    elevatorRows
+  }
+})
 ```
 
 ## `@nyc-transit-kit/nyc-open-data`
@@ -409,6 +474,13 @@ calling a curated descriptor scope complete:
 bun run scripts/check-provider-coverage.ts --provider nyc-dot --input ./tmp/dot-source.json
 ```
 
+For release evidence, collect local snapshots into a manifest and run the
+set-level checker:
+
+```sh
+bun run scripts/check-provider-coverage-set.ts --manifest ./tmp/provider-snapshots/manifest.json --out .release/evidence/provider-coverage.json
+```
+
 ## `@nyc-transit-kit/compat`
 
 `@nyc-transit-kit/compat` is a Promise facade over Effect programs. It should be
@@ -482,8 +554,8 @@ ntk mta gtfs-rt capture --feed alerts-all --output /tmp/alerts.pb --manifest-out
 Generic SODA3 commands are the universal escape hatch for any Socrata-backed
 dataset id. Provider commands add domain defaults, curated descriptors, and
 friendlier names. Typed adapters are intentionally narrower than generic access.
-Bus Time SIRI commands are not part of v0; Bus Time is tracked as an MTA direct
-surface that requires explicit API-key-aware client work.
+Bus Time SIRI CLI commands are not part of v0; Bus Time is available through
+the API-key-aware raw MTA JSON direct client surface.
 
 The CLI command tree uses Effect 4 beta's built-in unstable CLI modules from
 `effect/unstable/cli/*`. Do not install the separate `@effect/cli` package while
@@ -499,5 +571,6 @@ tests, and examples. It is not a mirror of full provider datasets.
 | `@nyc-transit-kit/fixtures` | Synthetic fixture constants. |
 
 Current exports include `packageName`, `fixturePolicy`,
-`sampleSocrataDatasetId`, `sampleSocrataDomain`, `sampleSoda3QueryResponse`, and
-`sampleSocrataCatalogResponse`.
+`sampleSocrataDatasetId`, `sampleSocrataDomain`, `sampleSoda3QueryResponse`,
+`sampleSocrataCatalogResponse`, `sampleMtaOpenDataCatalogRow`, and
+`sampleMtaElevatorEscalatorCurrentJson`.

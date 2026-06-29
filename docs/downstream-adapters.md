@@ -4,7 +4,8 @@ Downstream applications should consume this toolkit without moving their private
 product logic into this repository.
 
 For the current package export map, preferred subpath imports, and symbol
-reference, see the [API reference](api-reference.md).
+reference, see the [API reference](api-reference.md). For a task-oriented
+adoption path, see [Getting Started](getting-started.md).
 
 ## Effect-Native Consumption
 
@@ -32,6 +33,8 @@ const program = queryRows({
 Provider packages expose Effect programs and receive configuration through
 services or arguments. For Socrata-backed datasets, MTA Open Data, NYC Open
 Data, and NYC DOT helpers delegate to `@nyc-transit-kit/soda3`.
+Use Effect-native APIs when callers already use Effect or want typed errors,
+layers, retries, and composition at the application edge.
 Prefer operation subpaths such as `@nyc-transit-kit/soda3/query` for application
 and package code. Use `@nyc-transit-kit/soda3/client` for SODA3 services and
 layers. Package-root imports remain a convenience surface for broad exploration,
@@ -51,6 +54,8 @@ const rows = await queryNycDotRows({
 `packages/compat` contains thin Promise wrappers over Effect programs. Those
 wrappers must not duplicate endpoint construction, retry behavior, schema
 definitions, or provider-specific business logic.
+Use `@nyc-transit-kit/compat/*` wrappers when callers want Promises and do not
+need to own an Effect runtime directly.
 
 ## Keep Local To Downstreams
 

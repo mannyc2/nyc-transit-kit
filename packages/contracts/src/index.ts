@@ -50,10 +50,14 @@ export { IsoDate, SocrataDatasetId, SocrataDomain } from "./ids"
 export type {
   GtfsFeedKind as GtfsFeedKindType,
   MtaGtfsRealtimeCaptureRequestInput as MtaGtfsRealtimeCaptureRequestInputType,
+  MtaJsonDirectFetchRequestInput as MtaJsonDirectFetchRequestInputType,
+  MtaJsonDirectSurface as MtaJsonDirectSurfaceType,
   MtaOpenDataDatasetDescriptorInput as MtaOpenDataDatasetDescriptorInputType
 } from "./mta"
 export {
   GtfsFeedKind,
+  MtaElevatorEscalatorCurrent,
+  MtaElevatorEscalatorCurrentRow,
   MtaGtfsRealtimeCaptureManifest,
   MtaGtfsRealtimeCaptureRequest,
   MtaGtfsRealtimeCaptureResult,
@@ -63,6 +67,10 @@ export {
   MtaGtfsRealtimeProbeResult,
   MtaGtfsStaticFetchRequest,
   MtaGtfsStaticProbeResult,
+  MtaJsonDirectFetchRequest,
+  MtaJsonDirectFetchResult,
+  MtaJsonDirectSurface,
+  MtaOpenDataCatalogRow,
   MtaOpenDataDatasetDescriptor
 } from "./mta"
 export type {

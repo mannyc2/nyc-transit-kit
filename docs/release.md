@@ -197,23 +197,29 @@ auth because npm performs the token exchange during `npm publish`.
    `./dist/ntk --version --json`, `bun run release:prepare:npm`,
    `bun run check:npm-stage`, `bun run check:release-config`, and
    `bun run release:plan`.
-2. Open a PR and wait for default CI to pass.
-3. Run the GitHub `Release Plan` workflow or review the plan artifact from the
+2. When curated provider scopes changed, collect local provider snapshots under
+   `./tmp/provider-snapshots`, run
+   `bun run check:provider-coverage -- --manifest ./tmp/provider-snapshots/manifest.json --out .release/evidence/provider-coverage.json`,
+   and review `.release/evidence/provider-coverage.json` before release plan
+   review. The snapshots are local evidence inputs and are not committed source
+   of truth.
+3. Open a PR and wait for default CI to pass.
+4. Run the GitHub `Release Plan` workflow or review the plan artifact from the
    `Release` workflow. Review `.release/evidence`, `.release/artifacts`, and
    `dist`.
-4. For the first publish only, create the `nyc-transit-kit` npm organization and
+5. For the first publish only, create the `nyc-transit-kit` npm organization and
    publish with an npm account session or `NPM_TOKEN`. Skip this step when the
    package versions already exist on npm.
-5. After packages exist, configure npm trusted publishing for each package, run
+6. After packages exist, configure npm trusted publishing for each package, run
    `bun run release:trust-publishing`, and review the resulting config change.
-6. Review the rendered `ts-release` plan. Confirm every npm target points at
+7. Review the rendered `ts-release` plan. Confirm every npm target points at
    `.release/npm/<package>`, has the matching `@nyc-transit-kit/*`
    `packageName`, and the GitHub target creates a draft release.
-7. Publish by merging the release/version change to `main` or manually running
+8. Publish by merging the release/version change to `main` or manually running
    `Release` on `main`. Configure the GitHub `release` environment with required
    reviewers if execution should wait for human approval before npm/GitHub
    publication.
-8. Post-publish, verify npm and GitHub state:
+9. Post-publish, verify npm and GitHub state:
 
 ```sh
 npm view @nyc-transit-kit/contracts version

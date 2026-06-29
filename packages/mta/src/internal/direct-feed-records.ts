@@ -206,6 +206,7 @@ export const mtaJsonDirectFeedRecords = [
     name: "Elevator/Escalator Status Current JSON",
     surface: "elevator-escalator",
     format: "json",
+    adapterStatus: "row-schema",
     url: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fnyct_ene.json"
   },
   {

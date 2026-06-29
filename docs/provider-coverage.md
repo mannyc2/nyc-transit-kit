@@ -32,8 +32,8 @@ mirror.
 | SODA3 | yes | no | response fragments only | no |
 | NYC Open Data | yes | policy-scoped | selected | no |
 | NYC DOT | via NYC Open Data | DOT-scoped | selected | no |
-| MTA Open Data | via data.ny.gov | MTA catalog | selected later | no |
-| MTA Direct | URL/feed-based | feed descriptors | GTFS-RT summary first | yes |
+| MTA Open Data | via data.ny.gov | MTA catalog | selected | no |
+| MTA Direct | URL/feed-based | feed descriptors | GTFS-RT summary and selected JSON rows | yes |
 
 ## v0 Scope
 
@@ -80,6 +80,60 @@ Supported providers are `nyc-open-data`, `nyc-dot`, `mta-open-data`, and
 feed objects with `id` and `url` fields; the check compares IDs only. The
 script is offline by default, never contacts provider endpoints, and does not
 validate direct-feed endpoint liveness.
+
+## Selected Adapter Policy
+
+Generic access remains broad. Typed adapters are curated and should land only
+when a tiny public or synthetic fixture proves the provider DTO shape.
+
+The first MTA Open Data typed adapter decodes MTA Open Data Catalog rows from
+dataset `f462-ka72`. The first MTA JSON direct typed adapter decodes rows from
+the elevator/escalator current JSON feed. These adapters are row-schema depth;
+they do not normalize outage severity, reliability, route impact, scores, or
+other downstream product meaning.
+
+Descriptor `adapterStatus` values must match the implemented depth:
+
+- `"none"` means no package decoder exists.
+- `"row-schema"` means the package validates source DTO rows or row arrays.
+- `"normalized"` is reserved for deliberate provider-independent DTOs.
+
+## Release Ritual
+
+Provider coverage release evidence is generated from local official-source
+snapshots. Keep snapshots outside version control, for example under
+`./tmp/provider-snapshots`, and create a manifest like this:
+
+```json
+{
+  "providers": [
+    {
+      "provider": "mta-direct",
+      "input": "./tmp/provider-snapshots/mta-direct.json"
+    },
+    {
+      "provider": "nyc-dot",
+      "input": "./tmp/provider-snapshots/nyc-dot.json"
+    }
+  ]
+}
+```
+
+Run the set-level checker:
+
+```sh
+bun run check:provider-coverage -- --manifest ./tmp/provider-snapshots/manifest.json --out .release/evidence/provider-coverage.json
+```
+
+The evidence file reports one entry per provider:
+
+- `missingIds`: official snapshot IDs not represented locally.
+- `extraIds`: local curated IDs not present in the snapshot.
+- `ok`: `true` only when both arrays are empty.
+
+The snapshots are evidence inputs, not committed source of truth. Review
+`.release/evidence/provider-coverage.json` whenever curated provider scopes
+change.
 
 ## Rejected For v0
 

@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test"
 import {
   MtaGtfsRealtimeDecodedSummary,
   type MtaGtfsRealtimeProbeRequestInput,
-  type MtaGtfsStaticFetchRequestInput
+  type MtaGtfsStaticFetchRequestInput,
+  type MtaJsonDirectFetchRequestInput
 } from "@nyc-transit-kit/contracts/mta"
 import { Soda3ClientConfig } from "@nyc-transit-kit/soda3/client"
 import * as Effect from "effect/Effect"
@@ -12,15 +13,20 @@ import * as GtfsRealtimeBindings from "gtfs-realtime-bindings"
 import {
   captureGtfsRealtime,
   decodeGtfsRealtimeBytes,
+  decodeMtaElevatorEscalatorCurrent,
+  decodeMtaOpenDataCatalogRow,
   fetchGtfsStatic,
   fetchGtfsStaticResponse,
+  fetchMtaJsonDirect,
   findMtaGtfsRealtimeFeed,
   findMtaGtfsStaticFeed,
+  findMtaJsonDirectFeed,
   findMtaOpenDataDataset,
   GtfsRealtimeDecoder,
   gtfsRealtimeSurface,
   gtfsStaticSurface,
   MtaDecodeError,
+  MtaInvalidInputError,
   mtaDirectFeeds,
   mtaGtfsRealtimeFeeds,
   mtaGtfsStaticFeeds,
@@ -76,6 +82,39 @@ const gtfsRealtimeFixture = {
   url: "https://api-endpoint.mta.info/realtime.pb"
 } satisfies MtaGtfsRealtimeProbeRequestInput
 
+const jsonDirectFixture = {
+  surface: "bus-time",
+  url: "https://bustime.mta.info/api/siri/vehicle-monitoring.json?token=existing-secret",
+  apiKey: "secret-token",
+  apiKeyParameterName: "apiKey",
+  query: {
+    LineRef: "MTA NYCT_M15"
+  }
+} satisfies MtaJsonDirectFetchRequestInput
+
+const mtaOpenDataCatalogRowFixture = {
+  "Open Dataset ID": "f462-ka72",
+  Name: "MTA Open Data Catalog",
+  Description: "Synthetic row for adapter tests."
+}
+
+const elevatorEscalatorCurrentFixture = [
+  {
+    station: "Example Station",
+    borough: "M",
+    trainno: "A/C/E",
+    equipment: "EL001",
+    equipmenttype: "EL",
+    serving: "street to mezzanine",
+    ADA: "Y",
+    outagedate: "01/01/2026 12:00:00 AM",
+    estimatedreturntoservice: "01/02/2026 12:00:00 AM",
+    reason: "Repair",
+    isupcomingoutage: "N",
+    ismaintenanceoutage: "N"
+  }
+]
+
 type FetchInput = Parameters<typeof fetch>[0]
 type FetchInit = Parameters<typeof fetch>[1]
 type FetchHandler = (input: FetchInput, init?: FetchInit) => ReturnType<typeof fetch>
@@ -104,7 +143,7 @@ describe("@nyc-transit-kit/mta", () => {
     expect(String(mtaOpenDataCatalogDescriptor.id)).toBe("f462-ka72")
     expect(findMtaOpenDataDataset("f462-ka72")?.name).toBe("MTA Open Data Catalog")
     expect(mtaOpenDataCatalogDescriptor.sourceUrl).toBe("https://data.ny.gov/d/f462-ka72")
-    expect(mtaOpenDataCatalogDescriptor.adapterStatus).toBe("none")
+    expect(mtaOpenDataCatalogDescriptor.adapterStatus).toBe("row-schema")
     expect(String(mtaOpenDataCatalogDescriptor.lastVerified)).toBe("2026-06-16")
   })
 
@@ -132,6 +171,9 @@ describe("@nyc-transit-kit/mta", () => {
       "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"
     )
     expect(findMtaGtfsRealtimeFeed("alerts-all")?.feed).toBe("alerts")
+    expect(findMtaJsonDirectFeed("elevator-escalator-current")?.surface).toBe("elevator-escalator")
+    expect(findMtaJsonDirectFeed("bus-time-vehicle-monitoring")?.requiresApiKey).toBe(true)
+    expect(findMtaJsonDirectFeed("elevator-escalator-current")?.adapterStatus).toBe("row-schema")
   })
 
   test("probes and fetches GTFS static through injected fetch", async () => {
@@ -254,6 +296,66 @@ describe("@nyc-transit-kit/mta", () => {
     expect(requests[0]?.method).toBe("GET")
   })
 
+  test("fetches MTA JSON direct feeds with explicit API-key query wiring", async () => {
+    const requests: Array<Request> = []
+    const httpLayer = fetchLayer(async (input, init) => {
+      const request = requestFromFetchInput(input, init)
+      requests.push(request)
+      return Response.json(
+        {
+          Siri: {
+            ServiceDelivery: {}
+          }
+        },
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        }
+      )
+    })
+
+    const result = await Effect.runPromise(
+      fetchMtaJsonDirect(jsonDirectFixture).pipe(Effect.provide(httpLayer))
+    )
+    const url = new URL(requests[0]?.url ?? "https://example.test")
+
+    expect(requests[0]?.method).toBe("GET")
+    expect(requests[0]?.headers.get("accept")).toBe("application/json")
+    expect(url.searchParams.get("LineRef")).toBe("MTA NYCT_M15")
+    expect(url.searchParams.get("apiKey")).toBe("secret-token")
+    expect(result.surface).toBe("bus-time")
+    expect(result.status).toBe(200)
+    expect(result.contentType).toBe("application/json")
+    expect(result.json).toEqual({
+      Siri: {
+        ServiceDelivery: {}
+      }
+    })
+    expect(result.url).toContain("apiKey=REDACTED")
+    expect(result.url).toContain("token=REDACTED")
+    expect(result.url).not.toContain("secret-token")
+    expect(result.url).not.toContain("existing-secret")
+  })
+
+  test("maps invalid MTA JSON direct inputs to typed MTA errors", async () => {
+    const error = await Effect.runPromise(
+      fetchMtaJsonDirect({
+        surface: "gtfs-realtime",
+        url: "https://api-endpoint.mta.info/feed.json"
+      }).pipe(
+        Effect.provide(fetchLayer(async () => Response.json({}))),
+        Effect.match({
+          onFailure: (failure) => failure,
+          onSuccess: () => undefined
+        })
+      )
+    )
+
+    expect(error).toBeInstanceOf(MtaInvalidInputError)
+  })
+
   test("decodes GTFS realtime feeds with the live decoder", async () => {
     const result = await Effect.runPromise(
       decodeGtfsRealtimeBytes(syntheticGtfsRealtimeBytes(), "vehicle-positions")
@@ -325,5 +427,43 @@ describe("@nyc-transit-kit/mta", () => {
 
     expect(result.rows).toHaveLength(1)
     expect(requests[0]?.url).toBe("https://data.ny.gov/api/v3/views/f462-ka72/query.json")
+  })
+
+  test("decodes selected MTA DTO adapters", async () => {
+    const catalogRow = await Effect.runPromise(
+      decodeMtaOpenDataCatalogRow(mtaOpenDataCatalogRowFixture)
+    )
+    const elevatorRows = await Effect.runPromise(
+      decodeMtaElevatorEscalatorCurrent(elevatorEscalatorCurrentFixture)
+    )
+
+    expect(catalogRow.Name).toBe("MTA Open Data Catalog")
+    expect(elevatorRows[0]?.equipment).toBe("EL001")
+  })
+
+  test("maps selected MTA adapter failures to typed MTA errors", async () => {
+    const catalogError = await Effect.runPromise(
+      decodeMtaOpenDataCatalogRow({
+        Name: 123
+      }).pipe(
+        Effect.match({
+          onFailure: (failure) => failure,
+          onSuccess: () => undefined
+        })
+      )
+    )
+    const elevatorError = await Effect.runPromise(
+      decodeMtaElevatorEscalatorCurrent({
+        station: "not an array"
+      }).pipe(
+        Effect.match({
+          onFailure: (failure) => failure,
+          onSuccess: () => undefined
+        })
+      )
+    )
+
+    expect(catalogError).toBeInstanceOf(MtaInvalidInputError)
+    expect(elevatorError).toBeInstanceOf(MtaInvalidInputError)
   })
 })

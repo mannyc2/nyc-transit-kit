@@ -1,6 +1,6 @@
 # Official API Map
 
-Last verified: 2026-06-16.
+Last verified: 2026-06-29.
 
 This file records the provider surfaces the v0 toolkit is allowed to model.
 
@@ -39,8 +39,12 @@ snapshots, not hand-maintained in this document.
     fields in raw decoded data and does not yet normalize every extension.
   - MTA bus realtime data is provided through Bus Time APIs and requires an API
     key.
+  - The elevator/escalator current JSON direct feed returns an array of outage
+    rows with source fields such as `station`, `equipment`, `equipmenttype`,
+    `outagedate`, `estimatedreturntoservice`, and `reason`.
 - Source:
   - https://www.mta.info/developers
+  - https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fnyct_ene.json
 
 ## MTA Open Data
 

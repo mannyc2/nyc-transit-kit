@@ -10,11 +10,16 @@ import {
   DatasetDescriptorAdapterStatus,
   GtfsFeedKind,
   IsoDate,
+  MtaElevatorEscalatorCurrent,
   MtaGtfsRealtimeCaptureManifest,
   MtaGtfsRealtimeCaptureRequest,
   MtaGtfsRealtimeCaptureResult,
   MtaGtfsRealtimeDecodedSummary,
   MtaGtfsRealtimeProbeResult,
+  MtaJsonDirectFetchRequest,
+  MtaJsonDirectFetchResult,
+  MtaJsonDirectSurface,
+  MtaOpenDataCatalogRow,
   MtaOpenDataDatasetDescriptor,
   makeDescriptorRegistry,
   NycDotBusLaneRow,
@@ -254,6 +259,8 @@ describe("@nyc-transit-kit/contracts", () => {
   test("decodes provider-family contracts", async () => {
     expect(Schema.is(GtfsFeedKind)("vehicle-positions")).toBe(true)
     expect(Schema.is(GtfsFeedKind)("bus-time")).toBe(false)
+    expect(Schema.is(MtaJsonDirectSurface)("elevator-escalator")).toBe(true)
+    expect(Schema.is(MtaJsonDirectSurface)("gtfs-realtime")).toBe(false)
 
     const mtaDescriptor = await Effect.runPromise(
       Schema.decodeUnknownEffect(MtaOpenDataDatasetDescriptor)({
@@ -304,6 +311,43 @@ describe("@nyc-transit-kit/contracts", () => {
         url: "https://api-endpoint.mta.info/realtime.pb?key=secret"
       })
     )
+    const jsonDirectRequest = await Effect.runPromise(
+      Schema.decodeUnknownEffect(MtaJsonDirectFetchRequest)({
+        surface: "bus-time",
+        url: "https://bustime.mta.info/api/siri/vehicle-monitoring.json",
+        apiKey: "secret",
+        query: {
+          LineRef: "M15"
+        }
+      })
+    )
+    const jsonDirectResult = MtaJsonDirectFetchResult.make({
+      surface: "elevator-escalator",
+      status: 200,
+      url: "https://api-endpoint.mta.info/feed.json?key=REDACTED",
+      contentType: "application/json",
+      json: [
+        {
+          station: "Example Station"
+        }
+      ]
+    })
+    const catalogRow = await Effect.runPromise(
+      Schema.decodeUnknownEffect(MtaOpenDataCatalogRow)({
+        "Open Dataset ID": "f462-ka72",
+        Name: "MTA Open Data Catalog",
+        Description: "Synthetic row"
+      })
+    )
+    const elevatorRows = await Effect.runPromise(
+      Schema.decodeUnknownEffect(MtaElevatorEscalatorCurrent)([
+        {
+          station: "Example Station",
+          equipment: "EL001",
+          equipmenttype: "EL"
+        }
+      ])
+    )
     const captureManifest = MtaGtfsRealtimeCaptureManifest.make({
       feed: "vehicle-positions",
       status: 200,
@@ -331,6 +375,17 @@ describe("@nyc-transit-kit/contracts", () => {
 
     expect(String(mtaDescriptor.id)).toBe("f462-ka72")
     expect(captureRequest.feed).toBe("vehicle-positions")
+    expect(jsonDirectRequest.apiKey).toBe("secret")
+    expect(jsonDirectResult.json).toEqual([{ station: "Example Station" }])
+    expect(catalogRow.Name).toBe("MTA Open Data Catalog")
+    expect(elevatorRows[0]?.equipment).toBe("EL001")
+    expect(Schema.is(MtaJsonDirectFetchResult)(jsonDirectResult)).toBe(true)
+    expect(
+      Schema.is(MtaJsonDirectFetchRequest)({
+        surface: "gtfs-realtime",
+        url: "https://api-endpoint.mta.info/feed.json"
+      })
+    ).toBe(false)
     expect(Schema.is(MtaGtfsRealtimeProbeResult)(probeResult)).toBe(true)
     expect(Schema.is(MtaGtfsRealtimeProbeResult)({ ...probeResult, byteLength: -1 })).toBe(false)
     expect(

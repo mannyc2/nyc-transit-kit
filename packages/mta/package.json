@@ -6,11 +6,14 @@
   "exports": {
     ".": "./src/index.ts",
     "./datasets": "./src/datasets.ts",
+    "./elevator-escalator": "./src/elevator-escalator.ts",
     "./feeds": "./src/feeds.ts",
     "./errors": "./src/errors.ts",
     "./gtfs-realtime": "./src/gtfs-realtime.ts",
     "./gtfs-static": "./src/gtfs-static.ts",
-    "./open-data": "./src/open-data.ts"
+    "./json-direct": "./src/json-direct.ts",
+    "./open-data": "./src/open-data.ts",
+    "./open-data-catalog": "./src/open-data-catalog.ts"
   },
   "types": "./src/index.ts",
   "files": [

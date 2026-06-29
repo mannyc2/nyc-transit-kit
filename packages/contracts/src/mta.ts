@@ -10,9 +10,20 @@ type WidenedGtfsFeedInput<Encoded extends { readonly feed: GtfsFeedKind }> = Omi
 > & {
   readonly feed: WidenedStringInput<Encoded["feed"]>
 }
+type WidenedJsonDirectSurfaceInput<Encoded extends { readonly surface: MtaJsonDirectSurface }> =
+  Omit<Encoded, "surface"> & {
+    readonly surface: WidenedStringInput<Encoded["surface"]>
+  }
 
 export const GtfsFeedKind = Schema.Literals(["vehicle-positions", "trip-updates", "alerts"])
 export type GtfsFeedKind = typeof GtfsFeedKind.Type
+
+export const MtaJsonDirectSurface = Schema.Literals([
+  "service-alerts",
+  "elevator-escalator",
+  "bus-time"
+])
+export type MtaJsonDirectSurface = typeof MtaJsonDirectSurface.Type
 
 const Sha256Hex = Schema.String.pipe(
   Schema.check(
@@ -118,6 +129,29 @@ export class MtaGtfsRealtimeCaptureResult extends Schema.Class<MtaGtfsRealtimeCa
   bytes: Schema.Uint8Array
 }) {}
 
+export class MtaJsonDirectFetchRequest extends Schema.Class<MtaJsonDirectFetchRequest>(
+  "MtaJsonDirectFetchRequest"
+)({
+  surface: MtaJsonDirectSurface,
+  url: Schema.String,
+  apiKey: Schema.optionalKey(Schema.String),
+  apiKeyParameterName: Schema.optionalKey(Schema.String),
+  query: Schema.optionalKey(Schema.Record(Schema.String, Schema.String))
+}) {}
+type MtaJsonDirectFetchRequestEncoded = Schema.Codec.Encoded<typeof MtaJsonDirectFetchRequest>
+export type MtaJsonDirectFetchRequestInput =
+  WidenedJsonDirectSurfaceInput<MtaJsonDirectFetchRequestEncoded>
+
+export class MtaJsonDirectFetchResult extends Schema.Class<MtaJsonDirectFetchResult>(
+  "MtaJsonDirectFetchResult"
+)({
+  surface: MtaJsonDirectSurface,
+  status: Schema.Number,
+  url: Schema.String,
+  contentType: Schema.optionalKey(Schema.String),
+  json: Schema.Unknown
+}) {}
+
 export class MtaOpenDataDatasetDescriptor extends Schema.Class<MtaOpenDataDatasetDescriptor>(
   "MtaOpenDataDatasetDescriptor"
 )({
@@ -131,3 +165,30 @@ export class MtaOpenDataDatasetDescriptor extends Schema.Class<MtaOpenDataDatase
 export type MtaOpenDataDatasetDescriptorInput = Schema.Codec.Encoded<
   typeof MtaOpenDataDatasetDescriptor
 >
+
+export class MtaOpenDataCatalogRow extends Schema.Class<MtaOpenDataCatalogRow>(
+  "MtaOpenDataCatalogRow"
+)({
+  "Open Dataset ID": Schema.optionalKey(Schema.String),
+  Name: Schema.optionalKey(Schema.String),
+  Description: Schema.optionalKey(Schema.String)
+}) {}
+
+export class MtaElevatorEscalatorCurrentRow extends Schema.Class<MtaElevatorEscalatorCurrentRow>(
+  "MtaElevatorEscalatorCurrentRow"
+)({
+  station: Schema.optionalKey(Schema.String),
+  borough: Schema.optionalKey(Schema.String),
+  trainno: Schema.optionalKey(Schema.String),
+  equipment: Schema.optionalKey(Schema.String),
+  equipmenttype: Schema.optionalKey(Schema.String),
+  serving: Schema.optionalKey(Schema.String),
+  ADA: Schema.optionalKey(Schema.String),
+  outagedate: Schema.optionalKey(Schema.String),
+  estimatedreturntoservice: Schema.optionalKey(Schema.String),
+  reason: Schema.optionalKey(Schema.String),
+  isupcomingoutage: Schema.optionalKey(Schema.String),
+  ismaintenanceoutage: Schema.optionalKey(Schema.String)
+}) {}
+
+export const MtaElevatorEscalatorCurrent = Schema.Array(MtaElevatorEscalatorCurrentRow)
