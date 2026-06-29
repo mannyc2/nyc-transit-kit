@@ -230,8 +230,50 @@ npm view @nyc-transit-kit/nyc-dot version
 npm view @nyc-transit-kit/cli version
 npm view @nyc-transit-kit/compat version
 npm view @nyc-transit-kit/fixtures version
-gh release view v0.1.0 --repo mannyc2/nyc-transit-kit
+gh release view v0.1.1 --repo mannyc2/nyc-transit-kit
 ```
 
 Download the GitHub binary artifact and run `ntk --version --json`; it should
 report the release version, schema version, source commit, and build target.
+
+## Partial Release Recovery
+
+The `Release` workflow intentionally fails when it detects a partial remote
+state, for example when every npm package for a version is published but the
+matching GitHub release tag is missing. Do not rerun package publication in that
+state; npm package versions are immutable.
+
+First verify the remote state explicitly:
+
+```sh
+for package in contracts soda3 mta nyc-open-data nyc-dot cli compat fixtures; do
+  npm view "@nyc-transit-kit/${package}" version
+done
+gh release view v0.1.1 --repo mannyc2/nyc-transit-kit
+```
+
+If npm reports the configured version for every package and `gh release view`
+reports the tag is missing, recover only the GitHub release side. Rebuild the
+local release artifacts from the exact commit recorded in `release.config.json`,
+review `.release/artifacts` and `dist`, then create the missing draft GitHub
+release with the configured tag and notes:
+
+```sh
+bun install
+bun run check
+bun run build:cli
+bun run release:prepare:npm
+node -e 'const { writeFileSync } = require("node:fs"); const config = require("./release.config.json"); writeFileSync("/tmp/nyc-transit-kit-v0.1.1-notes.md", `${config.identity.notes}\n`)'
+gh release create v0.1.1 \
+  --repo mannyc2/nyc-transit-kit \
+  --draft \
+  --title "v0.1.1" \
+  --notes-file /tmp/nyc-transit-kit-v0.1.1-notes.md \
+  dist/ntk \
+  dist/ntk-release-manifest.json \
+  .release/artifacts/*.tgz
+```
+
+After recovery, rerun `gh release view v0.1.1 --repo mannyc2/nyc-transit-kit`.
+The next `Release` workflow run should then stop at the remote-state check
+instead of attempting another publish.
