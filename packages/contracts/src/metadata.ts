@@ -3,7 +3,7 @@ import { IsoDate } from "./ids"
 
 export const packageName = "@nyc-transit-kit/contracts"
 export const schemaVersion = "0.1.0"
-export const releaseVersion = "0.1.0"
+export const releaseVersion = "0.1.1"
 
 export const ApiFamily = Schema.Literals(["socrata", "mta", "nyc-open-data", "nyc-dot"])
 export type ApiFamily = typeof ApiFamily.Type

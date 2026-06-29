@@ -1,6 +1,6 @@
 {
   "name": "@nyc-transit-kit/soda3",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -22,7 +22,7 @@
     "test": "bun test ./test"
   },
   "dependencies": {
-    "@nyc-transit-kit/contracts": "0.1.0",
+    "@nyc-transit-kit/contracts": "0.1.1",
     "effect": "catalog:"
   },
   "publishConfig": {

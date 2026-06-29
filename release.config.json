@@ -1,10 +1,10 @@
 {
   "identity": {
     "name": "nyc-transit-kit",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "commit": "HEAD",
-    "tag": "v0.1.0",
-    "notes": "Initial v0 release of the Effect-native NYC and MTA transit data toolkit."
+    "tag": "v0.1.1",
+    "notes": "Patch release for provider ownership cleanup, safer capture writes, and GTFS-RT decode hardening."
   },
   "artifacts": [
     {
@@ -69,49 +69,49 @@
     },
     {
       "id": "github-cli-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-cli-0.1.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-cli-0.1.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-compat-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-compat-0.1.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-compat-0.1.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-contracts-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-contracts-0.1.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-contracts-0.1.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-fixtures-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-fixtures-0.1.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-fixtures-0.1.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-mta-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-mta-0.1.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-mta-0.1.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-nyc-dot-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-nyc-dot-0.1.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-nyc-dot-0.1.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-nyc-open-data-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-nyc-open-data-0.1.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-nyc-open-data-0.1.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-soda3-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-soda3-0.1.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-soda3-0.1.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     }
