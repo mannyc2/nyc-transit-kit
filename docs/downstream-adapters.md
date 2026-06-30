@@ -55,7 +55,11 @@ const rows = await queryNycDotRows({
 wrappers must not duplicate endpoint construction, retry behavior, schema
 definitions, or provider-specific business logic.
 Use `@nyc-transit-kit/compat/*` wrappers when callers want Promises and do not
-need to own an Effect runtime directly.
+need to own an Effect runtime directly. Promise wrappers reject with the native
+typed errors from the underlying Effect programs; use
+`@nyc-transit-kit/compat/errors` for shared error imports,
+`isTransitKitCompatError`, and provider-family guards such as
+`isSoda3ClientError`.
 
 ## Keep Local To Downstreams
 

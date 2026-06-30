@@ -20,3 +20,8 @@ export class MtaInvalidInputError extends Schema.TaggedErrorClass<MtaInvalidInpu
 ) {}
 
 export type MtaError = MtaHttpError | MtaDecodeError | MtaInvalidInputError
+
+export const isMtaError = (value: unknown): value is MtaError =>
+  value instanceof MtaHttpError ||
+  value instanceof MtaDecodeError ||
+  value instanceof MtaInvalidInputError

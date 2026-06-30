@@ -16,6 +16,7 @@ export type { Soda3ClientError } from "./errors"
 export {
   InvalidInputError,
   isRetryableProviderError,
+  isSoda3ClientError,
   ProviderContractError,
   ProviderHttpError,
   RetryExhaustedError,

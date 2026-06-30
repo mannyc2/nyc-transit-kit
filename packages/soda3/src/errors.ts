@@ -47,5 +47,12 @@ export type Soda3ClientError =
   | TimeoutError
   | RetryExhaustedError
 
+export const isSoda3ClientError = (value: unknown): value is Soda3ClientError =>
+  value instanceof InvalidInputError ||
+  value instanceof ProviderHttpError ||
+  value instanceof ProviderContractError ||
+  value instanceof TimeoutError ||
+  value instanceof RetryExhaustedError
+
 export const isRetryableProviderError = (error: Soda3ClientError): error is ProviderHttpError =>
   error._tag === "ProviderHttpError" && error.retryable

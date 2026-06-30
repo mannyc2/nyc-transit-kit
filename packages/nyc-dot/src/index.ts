@@ -11,6 +11,6 @@ export {
   trafficSpeeds,
   trafficVolumeCounts
 } from "./datasets"
-export { UnsupportedDatasetError } from "./errors"
+export { isUnsupportedDatasetError, UnsupportedDatasetError } from "./errors"
 export { decodeTrafficSpeedRow } from "./traffic-speeds"
 export { decodeTrafficVolumeRow } from "./traffic-volume"

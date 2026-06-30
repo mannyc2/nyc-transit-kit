@@ -5,6 +5,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./errors": "./src/errors.ts",
     "./mta": "./src/mta.ts",
     "./nyc-dot": "./src/nyc-dot.ts",
     "./nyc-open-data": "./src/nyc-open-data.ts",
