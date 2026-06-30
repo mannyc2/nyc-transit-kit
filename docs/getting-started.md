@@ -92,6 +92,11 @@ const rowsPromise = queryNycDotRows({
 })
 ```
 
+Promise wrappers reject with the same typed errors as the underlying Effect
+programs. Import error classes, provider-family guards, and
+`isTransitKitCompatError` from `@nyc-transit-kit/compat/errors` when Promise
+callers need to narrow failures.
+
 ## CLI
 
 Every CLI command supports `--json`, and dry-run commands avoid live provider

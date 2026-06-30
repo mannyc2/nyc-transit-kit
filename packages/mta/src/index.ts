@@ -9,7 +9,7 @@ export {
 } from "./datasets"
 export { decodeMtaElevatorEscalatorCurrent } from "./elevator-escalator"
 export type { MtaError } from "./errors"
-export { MtaDecodeError, MtaHttpError, MtaInvalidInputError } from "./errors"
+export { isMtaError, MtaDecodeError, MtaHttpError, MtaInvalidInputError } from "./errors"
 export type {
   MtaDirectFeedDescriptor,
   MtaDirectFeedSurface,

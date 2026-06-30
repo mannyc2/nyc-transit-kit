@@ -75,7 +75,7 @@ families.
 | `@nyc-transit-kit/soda3/export` | `exportResponse` operation. |
 | `@nyc-transit-kit/soda3/catalog` | `catalogSearch` and `buildCatalogSearchUrl`. |
 | `@nyc-transit-kit/soda3/endpoints` | SODA3 URL builders and request decoders. |
-| `@nyc-transit-kit/soda3/errors` | SODA3 typed errors and retry helpers. |
+| `@nyc-transit-kit/soda3/errors` | SODA3 typed errors, `isSoda3ClientError`, and retry helpers. |
 | `@nyc-transit-kit/soda3/soql` | SoQL constants, validated identifiers, parameter fragments, ordering, and Socrata date-window helpers. |
 
 Important exports:
@@ -103,6 +103,7 @@ Important exports:
 | `ProviderContractError` | `@nyc-transit-kit/soda3/errors` | Provider payload failed expected contract. |
 | `TimeoutError` | `@nyc-transit-kit/soda3/errors` | Timeout failure. |
 | `RetryExhaustedError` | `@nyc-transit-kit/soda3/errors` | Retry budget exhausted. |
+| `isSoda3ClientError` | `@nyc-transit-kit/soda3/errors` | Narrows native SODA3 client failures. |
 | `isRetryableProviderError` | `@nyc-transit-kit/soda3/errors` | Narrows retryable provider failures. |
 | `soqlSelectAll` | `@nyc-transit-kit/soda3/soql` | `"SELECT *"`. |
 | `soqlLimit` | `@nyc-transit-kit/soda3/soql` | Adds a validated `LIMIT`. |
@@ -203,7 +204,7 @@ helpers. MTA Open Data access delegates through SODA3.
 | `@nyc-transit-kit/mta/open-data-catalog` | MTA Open Data catalog row decoder. |
 | `@nyc-transit-kit/mta/elevator-escalator` | Elevator/escalator current JSON row decoder. |
 | `@nyc-transit-kit/mta/datasets` | MTA Open Data descriptors and lookup helpers. |
-| `@nyc-transit-kit/mta/errors` | MTA typed errors. |
+| `@nyc-transit-kit/mta/errors` | MTA typed errors and `isMtaError`. |
 
 Important exports include `MtaHttpLive`, `probeGtfsStatic`,
 `fetchGtfsStatic`, `fetchGtfsStaticResponse`,
@@ -418,7 +419,7 @@ thin SODA3-backed query/export adapters.
 | `@nyc-transit-kit/nyc-dot/bus-lanes` | `decodeBusLaneRow`. |
 | `@nyc-transit-kit/nyc-dot/traffic-speeds` | `decodeTrafficSpeedRow`. |
 | `@nyc-transit-kit/nyc-dot/traffic-volume` | `decodeTrafficVolumeRow`. |
-| `@nyc-transit-kit/nyc-dot/errors` | `UnsupportedDatasetError`. |
+| `@nyc-transit-kit/nyc-dot/errors` | `UnsupportedDatasetError` and `isUnsupportedDatasetError`. |
 
 Important exports include `queryNycDotDataset`, `exportNycDotDataset`,
 `nycDotDatasets`, `initialDatasetIds`, `nycDotOpenDataDomain`,
@@ -494,17 +495,38 @@ duplicate endpoint construction, retries, schemas, or provider logic.
 | `@nyc-transit-kit/compat/mta` | `fetchMtaGtfsStaticBytes`, `probeMtaGtfsRealtime`, `MtaCompatOptions`. |
 | `@nyc-transit-kit/compat/nyc-open-data` | `queryNycOpenDataRows`, `searchNycOpenData`. |
 | `@nyc-transit-kit/compat/nyc-dot` | `queryNycDotRows`. |
+| `@nyc-transit-kit/compat/errors` | Shared native error re-exports, provider-family guards, and `isTransitKitCompatError`. |
 
 Promise compat example:
 
 ```ts
+import { isTransitKitCompatError } from "@nyc-transit-kit/compat/errors"
 import { queryNycDotRows } from "@nyc-transit-kit/compat/nyc-dot"
 
-const rows = await queryNycDotRows({
-  name: "traffic-speeds",
-  query: "SELECT *"
-})
+try {
+  const rows = await queryNycDotRows({
+    name: "traffic-speeds",
+    query: "SELECT *"
+  })
+  rows.rows
+} catch (error) {
+  if (isTransitKitCompatError(error)) {
+    error._tag
+  }
+}
 ```
+
+Compat error guards by family:
+
+| Family | Guard | Error tags |
+| --- | --- | --- |
+| SODA3 | `isSoda3ClientError` | `InvalidInputError`, `ProviderHttpError`, `ProviderContractError`, `TimeoutError`, `RetryExhaustedError` |
+| MTA | `isMtaError` | `MtaHttpError`, `MtaDecodeError`, `MtaInvalidInputError` |
+| NYC DOT descriptors | `isUnsupportedDatasetError` | `UnsupportedDatasetError` |
+
+`isTransitKitCompatError` composes those native guards. It narrows errors
+created by this package family; it is not a loose structural check for arbitrary
+objects that happen to contain a matching `_tag`.
 
 ## `@nyc-transit-kit/cli`
 

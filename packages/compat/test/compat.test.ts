@@ -3,6 +3,10 @@ import { UnsupportedDatasetError } from "@nyc-transit-kit/nyc-dot/errors"
 import {
   facadeStyle,
   fetchMtaGtfsStaticBytes,
+  isSoda3ClientError,
+  isTransitKitCompatError,
+  isUnsupportedDatasetError,
+  ProviderHttpError,
   packageName,
   probeMtaGtfsRealtime,
   queryNycDotRows,
@@ -17,9 +21,6 @@ const makeFetch = (handler: FetchHandler): typeof fetch =>
   Object.assign(handler, {
     preconnect: fetch.preconnect
   })
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
 
 const syntheticGtfsRealtimeBytes = () =>
   new Uint8Array([
@@ -121,10 +122,30 @@ describe("@nyc-transit-kit/compat", () => {
       query: "SELECT *"
     }).catch((failure: unknown) => failure)
 
-    expect(
-      error instanceof UnsupportedDatasetError ||
-        (isRecord(error) && error._tag === "UnsupportedDatasetError")
-    ).toBe(true)
+    expect(isTransitKitCompatError(error)).toBe(true)
+    expect(isUnsupportedDatasetError(error)).toBe(true)
+    expect(error).toBeInstanceOf(UnsupportedDatasetError)
+  })
+
+  test("exports compat error helpers from the facade", async () => {
+    const errorsModule = await import("../src/errors")
+    const error = await querySoda3Rows(
+      {
+        domain: "data.cityofnewyork.us",
+        datasetId: "ycrg-ses3",
+        query: "SELECT *"
+      },
+      {
+        fetch: makeFetch(async () => new Response("upstream failed", { status: 500 }))
+      }
+    ).catch((failure: unknown) => failure)
+
+    expect(errorsModule.isTransitKitCompatError).toBe(isTransitKitCompatError)
+    expect(isTransitKitCompatError(error)).toBe(true)
+    expect(errorsModule.isSoda3ClientError).toBe(isSoda3ClientError)
+    expect(isSoda3ClientError(error)).toBe(true)
+    expect(error).toBeInstanceOf(ProviderHttpError)
+    expect(isTransitKitCompatError({ _tag: "ProviderHttpError" })).toBe(false)
   })
 
   test("does not export the old NYC Open Data method bag", async () => {

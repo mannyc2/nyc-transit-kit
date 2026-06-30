@@ -7,3 +7,6 @@ export class UnsupportedDatasetError extends Schema.TaggedErrorClass<Unsupported
     message: Schema.String
   }
 ) {}
+
+export const isUnsupportedDatasetError = (value: unknown): value is UnsupportedDatasetError =>
+  value instanceof UnsupportedDatasetError

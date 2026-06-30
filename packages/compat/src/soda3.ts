@@ -3,6 +3,17 @@ import { exportResponse, type Soda3ExportRequestInput } from "@nyc-transit-kit/s
 import { queryRows, type Soda3QueryRequestInput } from "@nyc-transit-kit/soda3/query"
 import { runSoda3Effect } from "./internal/run"
 
+export type { Soda3ClientError } from "@nyc-transit-kit/soda3/errors"
+export {
+  InvalidInputError,
+  isRetryableProviderError,
+  isSoda3ClientError,
+  ProviderContractError,
+  ProviderHttpError,
+  RetryExhaustedError,
+  TimeoutError
+} from "@nyc-transit-kit/soda3/errors"
+
 export interface Soda3CompatOptions {
   readonly appToken?: string
   readonly retryTimes?: number
