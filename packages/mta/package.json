@@ -1,6 +1,6 @@
 {
   "name": "@nyc-transit-kit/mta",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -24,8 +24,8 @@
     "test": "bun test ./test"
   },
   "dependencies": {
-    "@nyc-transit-kit/contracts": "0.1.2",
-    "@nyc-transit-kit/soda3": "0.1.2",
+    "@nyc-transit-kit/contracts": "0.1.3",
+    "@nyc-transit-kit/soda3": "0.1.3",
     "effect": "catalog:",
     "gtfs-realtime-bindings": "catalog:"
   },

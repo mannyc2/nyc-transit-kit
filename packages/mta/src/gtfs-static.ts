@@ -71,13 +71,15 @@ export const probeGtfsStatic = Effect.fn("Mta.probeGtfsStatic")(function* (
   const response = yield* HttpClient.execute(HttpClientRequest.head(request.url)).pipe(
     Effect.mapError((error) => mapMtaHttpClientError("gtfs-static", error))
   )
+  const contentType = response.headers["content-type"]
+  const contentLength = responseContentLength(response)
 
   return MtaGtfsStaticProbeResult.make({
     url: request.url,
     ok: response.status >= 200 && response.status < 300,
     status: response.status,
-    contentType: response.headers["content-type"],
-    contentLength: responseContentLength(response)
+    ...(contentType === undefined ? {} : { contentType }),
+    ...(contentLength === undefined ? {} : { contentLength })
   })
 })
 

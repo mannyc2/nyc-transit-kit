@@ -5,16 +5,8 @@ import { dirname, isAbsolute, join } from "node:path"
 import * as BunHttpClient from "@effect/platform-bun/BunHttpClient"
 import * as BunRuntime from "@effect/platform-bun/BunRuntime"
 import * as BunServices from "@effect/platform-bun/BunServices"
-import type {
-  EvidenceBundle,
-  ReleaseWorkflowEvidence,
-  ReleaseWorkflowFailureEvidence
-} from "@mannyc1/ts-release/domain/evidence"
-import type { ReleasePlan } from "@mannyc1/ts-release/domain/release"
 import { renderEvidenceJson } from "@mannyc1/ts-release/planner/evidence-recorder"
-import * as ConfigWorkflow from "@mannyc1/ts-release/workflows/config"
-import * as EvidenceWorkflow from "@mannyc1/ts-release/workflows/evidence"
-import * as LiveWorkflow from "@mannyc1/ts-release/workflows/live"
+import { Config, Diagnostics, Live } from "@mannyc1/ts-release/workflows"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
@@ -23,14 +15,17 @@ import * as Path from "effect/Path"
 
 type JsonRecord = Record<string, unknown>
 type CommandName =
+  | "check-auth"
+  | "check-ci"
+  | "doctor"
   | "execute"
+  | "explain"
   | "plan"
   | "print"
   | "reconcile"
   | "render"
-  | "resume"
+  | "stage-artifacts"
   | "run"
-  | "status"
   | "validate"
   | "validate-config"
   | "verify"
@@ -44,19 +39,25 @@ Commands:
   plan              Render the release plan
   print             Render the text release plan
   validate-config   Validate release.config.json shape
-  status            Render release operation status
+  stage-artifacts   Stage ts-release artifact recipes and print staged artifacts
+  explain           Explain a release operation, e.g. explain npm:npm-publish
+  doctor            Run release diagnostics
+  check-auth        Check release auth diagnostics
+  check-ci          Check release CI diagnostics
   render            Run render operations and write render evidence
   validate          Run validation operations and write validation evidence
   execute           Run execution operations and write execution evidence
   verify            Run verification operations and write verification evidence
   run               Run render, validate, execute, and verify as one workflow
-  resume            Resume a release workflow from existing evidence
   reconcile         Reconcile mutable remote state
 
 Options:
   --config <path>              Release config path, default release.config.json
-  --format <format>            plan: json|text|summary|markdown; status: json|text
+  --format <format>            plan: json|text|summary|markdown; diagnostics: json|text|markdown
   --out <path>                 Write rendered plan to a file
+  --operation <id>             Operation id for explain
+  --target <id>                Target id for check-auth
+  --workflow <path>            Workflow path for check-ci, default .github/workflows/release.yml
   --execute                    Allow non-dry-run operations
   --approve-irreversible       Approve irreversible operations`
 
@@ -96,14 +97,17 @@ const hasGitMetadata = async () => {
 
 const commandFromInput = (value: string | undefined): CommandName => {
   switch (value) {
+    case "check-auth":
+    case "check-ci":
+    case "doctor":
     case "execute":
+    case "explain":
     case "plan":
     case "print":
     case "reconcile":
     case "render":
-    case "resume":
+    case "stage-artifacts":
     case "run":
-    case "status":
     case "validate":
     case "validate-config":
     case "verify":
@@ -125,9 +129,19 @@ const flagValue = (name: string, fallback: string) => {
   return value
 }
 
+const optionalFlagValue = (name: string) => {
+  const value = flagValue(name, "")
+  return value.length === 0 ? undefined : value
+}
+
+const positionalValue = (index: number) => {
+  const values = args.slice(1).filter((value) => !value.startsWith("--"))
+  return values[index]
+}
+
 const hasFlag = (name: string) => args.includes(name)
 
-const parsePlanFormat = (value: string): ConfigWorkflow.ReleasePlanFormat => {
+const parsePlanFormat = (value: string): Config.ReleasePlanFormat => {
   switch (value) {
     case "json":
     case "markdown":
@@ -139,7 +153,7 @@ const parsePlanFormat = (value: string): ConfigWorkflow.ReleasePlanFormat => {
   }
 }
 
-const parseValidationFormat = (value: string): ConfigWorkflow.ReleaseConfigValidationFormat => {
+const parseValidationFormat = (value: string): Config.ReleaseConfigValidationFormat => {
   switch (value) {
     case "json":
     case "text":
@@ -149,13 +163,24 @@ const parseValidationFormat = (value: string): ConfigWorkflow.ReleaseConfigValid
   }
 }
 
-const parseStatusFormat = (value: string): "json" | "text" => {
+const parseStageArtifactsFormat = (value: string): Config.StageArtifactsFormat => {
   switch (value) {
     case "json":
     case "text":
       return value
     default:
-      return die(`Unsupported status format: ${value}`)
+      return die(`Unsupported stage-artifacts format: ${value}`)
+  }
+}
+
+const parseDiagnosticsFormat = (value: string): Diagnostics.ReleaseDiagnosticsFormat => {
+  switch (value) {
+    case "json":
+    case "markdown":
+    case "text":
+      return value
+    default:
+      return die(`Unsupported diagnostics format: ${value}`)
   }
 }
 
@@ -199,32 +224,17 @@ const writeOrPrint = Effect.fn("run-ts-release.writeOrPrint")(function* (
   return yield* Console.log(contents.trimEnd())
 })
 
-const writeAndPrintEvidence = Effect.fn("run-ts-release.writeAndPrintEvidence")(function* (
-  plan: ReleasePlan,
-  name: string,
-  evidence: EvidenceBundle
+const printWrittenEvidence = Effect.fn("run-ts-release.printWrittenEvidence")(function* (
+  result: Config.PlannedReleaseConfigWrittenEvidenceResult
 ) {
-  yield* EvidenceWorkflow.writeNamedEvidence(plan, name, evidence)
-  yield* Console.log(renderEvidenceJson(evidence).trimEnd())
+  yield* Console.log(renderEvidenceJson(result.evidence).trimEnd())
 })
 
-const writeFailedEvidence = Effect.fn("run-ts-release.writeFailedEvidence")(function* (
-  plan: ReleasePlan,
-  name: string,
-  error: { readonly evidence?: EvidenceBundle | undefined }
+const renderDiagnostics = Effect.fn("run-ts-release.renderDiagnostics")(function* (
+  report: Diagnostics.ReleaseDiagnosticReport,
+  format: Diagnostics.ReleaseDiagnosticsFormat
 ) {
-  const path = yield* EvidenceWorkflow.writeFailedOperationEvidence(plan, name, error)
-  if (path !== undefined && error.evidence !== undefined) {
-    yield* Console.log(renderEvidenceJson(error.evidence).trimEnd())
-  }
-})
-
-const writeWorkflowEvidence = Effect.fn("run-ts-release.writeWorkflowEvidence")(function* (
-  plan: ReleasePlan,
-  evidence: ReleaseWorkflowEvidence | ReleaseWorkflowFailureEvidence
-) {
-  const paths = yield* EvidenceWorkflow.writeWorkflowEvidence(plan, evidence)
-  yield* Console.log(JSON.stringify({ evidence: paths }, null, 2))
+  yield* Console.log(Diagnostics.render(report, format).trimEnd())
 })
 
 const programForCommand = (command: CommandName, configPath: string) => {
@@ -232,160 +242,102 @@ const programForCommand = (command: CommandName, configPath: string) => {
 
   switch (command) {
     case "plan":
-      return Effect.gen(function* () {
-        const contents = yield* ConfigWorkflow.renderPlan({
-          ...input,
-          format: parsePlanFormat(flagValue("--format", "text"))
-        })
-        yield* writeOrPrint(flagValue("--out", ""), contents)
-      })
+      return Config.renderPlan({
+        ...input,
+        format: parsePlanFormat(flagValue("--format", "text"))
+      }).pipe(Effect.flatMap((contents) => writeOrPrint(flagValue("--out", ""), contents)))
 
     case "print":
-      return Effect.gen(function* () {
-        const contents = yield* ConfigWorkflow.renderPlan({
-          ...input,
-          format: "text"
-        })
-        yield* Console.log(contents.trimEnd())
-      })
+      return Config.renderPlan({
+        ...input,
+        format: "text"
+      }).pipe(Effect.flatMap((contents) => Console.log(contents.trimEnd())))
 
     case "validate-config":
-      return Effect.gen(function* () {
-        const contents = yield* ConfigWorkflow.renderValidation({
-          ...input,
-          format: parseValidationFormat(flagValue("--format", "text"))
-        })
-        yield* Console.log(contents.trimEnd())
-      })
+      return Config.renderValidation({
+        ...input,
+        format: parseValidationFormat(flagValue("--format", "text"))
+      }).pipe(Effect.flatMap((contents) => Console.log(contents.trimEnd())))
 
-    case "status":
-      return Effect.gen(function* () {
-        const contents = yield* ConfigWorkflow.renderStatus({
-          ...input,
-          format: parseStatusFormat(flagValue("--format", "text"))
-        })
-        yield* Console.log(contents.trimEnd())
-      })
+    case "stage-artifacts":
+      return Config.renderStageArtifacts({
+        ...input,
+        format: parseStageArtifactsFormat(flagValue("--format", "text"))
+      }).pipe(Effect.flatMap((contents) => Console.log(contents.trimEnd())))
+
+    case "explain": {
+      const operationId = flagValue("--operation", positionalValue(0) ?? "")
+      if (operationId.length === 0) {
+        return die("Missing operation id for explain")
+      }
+      return Config.explain({ ...input, operationId }).pipe(
+        Effect.flatMap((contents) => Console.log(contents.trimEnd()))
+      )
+    }
+
+    case "doctor": {
+      const format = parseDiagnosticsFormat(flagValue("--format", "text"))
+      return Diagnostics.doctor({ ...input, format }).pipe(
+        Effect.flatMap((report) => renderDiagnostics(report, format))
+      )
+    }
+
+    case "check-auth": {
+      const format = parseDiagnosticsFormat(flagValue("--format", "text"))
+      return Diagnostics.checkAuth({
+        ...input,
+        format,
+        target: optionalFlagValue("--target")
+      }).pipe(Effect.flatMap((report) => renderDiagnostics(report, format)))
+    }
+
+    case "check-ci": {
+      const format = parseDiagnosticsFormat(flagValue("--format", "text"))
+      return Diagnostics.checkCi({
+        ...input,
+        format,
+        provider: "github-actions",
+        workflow: flagValue("--workflow", ".github/workflows/release.yml")
+      }).pipe(Effect.flatMap((report) => renderDiagnostics(report, format)))
+    }
 
     case "render":
-      return Effect.gen(function* () {
-        const options = { ...input, execute: hasFlag("--execute") }
-        const plan = yield* ConfigWorkflow.plan(options)
-        const evidence = yield* ConfigWorkflow.render(options).pipe(
-          Effect.catchTag("OperationFailedError", (error) =>
-            writeFailedEvidence(plan, "render", error).pipe(
-              Effect.flatMap(() => Effect.fail(error))
-            )
-          )
-        )
-        yield* writeAndPrintEvidence(plan, "render", evidence)
-      })
+      return Config.planAndWriteRender({
+        ...input,
+        execute: hasFlag("--execute")
+      }).pipe(Effect.flatMap(printWrittenEvidence))
 
     case "validate":
-      return Effect.gen(function* () {
-        const plan = yield* ConfigWorkflow.plan(input)
-        const evidence = yield* ConfigWorkflow.validate(input).pipe(
-          Effect.catchTag("OperationFailedError", (error) =>
-            writeFailedEvidence(plan, "validation", error).pipe(
-              Effect.flatMap(() => Effect.fail(error))
-            )
-          )
-        )
-        yield* writeAndPrintEvidence(plan, "validation", evidence)
-      })
+      return Config.planAndWriteValidation(input).pipe(Effect.flatMap(printWrittenEvidence))
 
     case "execute":
-      return Effect.gen(function* () {
-        const options = {
-          ...input,
-          approveIrreversible: hasFlag("--approve-irreversible"),
-          execute: hasFlag("--execute")
-        }
-        const plan = yield* ConfigWorkflow.plan(options)
-        const evidence = yield* ConfigWorkflow.execute(options).pipe(
-          Effect.catchTag("OperationFailedError", (error) =>
-            writeFailedEvidence(plan, "execution", error).pipe(
-              Effect.flatMap(() => Effect.fail(error))
-            )
-          )
-        )
-        yield* writeAndPrintEvidence(plan, "execution", evidence)
-      })
+      return Config.planAndWriteExecution({
+        ...input,
+        approveIrreversible: hasFlag("--approve-irreversible"),
+        execute: hasFlag("--execute")
+      }).pipe(Effect.flatMap(printWrittenEvidence))
 
     case "verify":
-      return Effect.gen(function* () {
-        const plan = yield* ConfigWorkflow.plan(input)
-        const evidence = yield* ConfigWorkflow.verify(input).pipe(
-          Effect.catchTag("OperationFailedError", (error) =>
-            writeFailedEvidence(plan, "verification", error).pipe(
-              Effect.flatMap(() => Effect.fail(error))
-            )
-          )
-        )
-        yield* writeAndPrintEvidence(plan, "verification", evidence)
-      })
+      return Config.planAndWriteVerification(input).pipe(Effect.flatMap(printWrittenEvidence))
 
     case "run":
-      return Effect.gen(function* () {
-        const options = {
-          ...input,
-          approveIrreversible: hasFlag("--approve-irreversible"),
-          execute: hasFlag("--execute")
-        }
-        const plan = yield* ConfigWorkflow.plan(options)
-        const evidence = yield* ConfigWorkflow.run(options).pipe(
-          Effect.catchTag("OperationFailedError", (error) => {
-            if (error.workflowEvidence === undefined) {
-              return Effect.fail(error)
-            }
-            return writeWorkflowEvidence(plan, error.workflowEvidence).pipe(
-              Effect.flatMap(() => Effect.fail(error))
-            )
-          })
-        )
-        yield* writeWorkflowEvidence(plan, evidence)
-      })
-
-    case "resume":
-      return Effect.gen(function* () {
-        const options = {
-          ...input,
-          approveIrreversible: hasFlag("--approve-irreversible"),
-          execute: hasFlag("--execute")
-        }
-        const plan = yield* ConfigWorkflow.plan(options)
-        const evidence = yield* ConfigWorkflow.resume(options).pipe(
-          Effect.catchTag("OperationFailedError", (error) => {
-            if (error.workflowEvidence === undefined) {
-              return Effect.fail(error)
-            }
-            return writeWorkflowEvidence(plan, error.workflowEvidence).pipe(
-              Effect.flatMap(() => Effect.fail(error))
-            )
-          })
-        )
-        yield* writeWorkflowEvidence(plan, evidence)
-      })
+      return Config.planAndWriteRun({
+        ...input,
+        approveIrreversible: hasFlag("--approve-irreversible"),
+        execute: hasFlag("--execute")
+      }).pipe(Effect.flatMap(printWrittenEvidence))
 
     case "reconcile":
-      return Effect.gen(function* () {
-        const options = { ...input, execute: hasFlag("--execute") }
-        const plan = yield* ConfigWorkflow.plan(options)
-        const evidence = yield* ConfigWorkflow.reconcile(options).pipe(
-          Effect.catchTag("OperationFailedError", (error) =>
-            writeFailedEvidence(plan, "reconciliation", error).pipe(
-              Effect.flatMap(() => Effect.fail(error))
-            )
-          )
-        )
-        yield* writeAndPrintEvidence(plan, "reconciliation", evidence)
-      })
+      return Config.planAndWriteReconcile({
+        ...input,
+        execute: hasFlag("--execute")
+      }).pipe(Effect.flatMap(printWrittenEvidence))
   }
 }
 
 const command = commandFromInput(args[0])
 const configPath = await configPathForCommand(command, flagValue("--config", "release.config.json"))
-const runtimeLayer = LiveWorkflow.makeLayer({ root: rootPath }).pipe(
+const runtimeLayer = Live.makeLayer({ root: rootPath }).pipe(
   Layer.provideMerge(BunServices.layer),
   Layer.provideMerge(BunHttpClient.layer)
 )

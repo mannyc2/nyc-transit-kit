@@ -1,7 +1,14 @@
 export const packageName = "@nyc-transit-kit/soda3"
 export { buildCatalogSearchUrl, catalogSearch } from "./catalog"
-export type { Soda3ClientConfigShape } from "./client"
-export { Soda3ClientConfig, Soda3HttpLive, Soda3Live } from "./client"
+export type { Soda3ClientConfigShape, Soda3LayerOptions } from "./client"
+export {
+  Soda3ClientConfig,
+  Soda3HttpLive,
+  Soda3Live,
+  soda3ConfigLayer,
+  soda3FetchLayer,
+  soda3Layer
+} from "./client"
 export {
   buildExportUrl,
   buildQueryUrl,
