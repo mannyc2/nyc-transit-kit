@@ -18,9 +18,21 @@ export {
   UnsupportedDatasetError
 } from "./errors"
 export type { MtaCompatOptions } from "./mta"
-export { fetchMtaGtfsStaticBytes, probeMtaGtfsRealtime } from "./mta"
-export { queryNycDotRows } from "./nyc-dot"
-export { queryNycOpenDataRows, searchNycOpenData } from "./nyc-open-data"
+export {
+  captureMtaGtfsRealtime,
+  fetchMtaGtfsStaticBytes,
+  fetchMtaGtfsStaticResponse,
+  fetchMtaJsonDirect,
+  probeMtaGtfsRealtime,
+  probeMtaGtfsStatic,
+  queryMtaOpenDataRows
+} from "./mta"
+export { exportNycDotResponse, queryNycDotRows } from "./nyc-dot"
+export {
+  exportNycOpenDataResponse,
+  queryNycOpenDataRows,
+  searchNycOpenData
+} from "./nyc-open-data"
 export type { Soda3CompatOptions } from "./soda3"
 export {
   exportSoda3Response,

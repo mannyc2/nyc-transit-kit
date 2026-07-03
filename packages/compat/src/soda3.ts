@@ -17,6 +17,7 @@ export {
 export interface Soda3CompatOptions {
   readonly appToken?: string
   readonly retryTimes?: number
+  readonly timeoutMs?: number
   readonly fetch?: typeof fetch
 }
 

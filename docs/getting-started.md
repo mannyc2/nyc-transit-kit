@@ -31,26 +31,15 @@ Socrata-backed access is SODA3-only. Core packages take explicit config through
 arguments, services, and layers.
 
 ```ts
-import { Soda3ClientConfig } from "@nyc-transit-kit/soda3/client"
+import { soda3Layer } from "@nyc-transit-kit/soda3/client"
 import { queryRows } from "@nyc-transit-kit/soda3/query"
 import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 
 const program = queryRows({
   domain: "data.cityofnewyork.us",
   datasetId: "ycrg-ses3",
   query: "SELECT * LIMIT 5"
-}).pipe(
-  Effect.provide(
-    Layer.mergeAll(
-      Layer.succeed(Soda3ClientConfig)({
-        retryTimes: 2
-      }),
-      FetchHttpClient.layer
-    )
-  )
-)
+}).pipe(Effect.provide(soda3Layer({ retryTimes: 2 })))
 ```
 
 ## Provider Helper
@@ -60,14 +49,13 @@ adapters on top of the generic SODA3 layer.
 
 ```ts
 import { queryNycDotDataset } from "@nyc-transit-kit/nyc-dot/client"
-import { Soda3ClientConfig, Soda3HttpLive } from "@nyc-transit-kit/soda3/client"
+import { soda3Layer } from "@nyc-transit-kit/soda3/client"
 import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
 
 const program = queryNycDotDataset({
   name: "traffic-speeds",
   query: "SELECT * LIMIT 5"
-}).pipe(Effect.provide(Layer.mergeAll(Soda3ClientConfig.Default, Soda3HttpLive)))
+}).pipe(Effect.provide(soda3Layer()))
 ```
 
 MTA direct-feed descriptors are available without contacting live endpoints:

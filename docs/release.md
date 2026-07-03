@@ -18,6 +18,7 @@ Before any release:
 - `bun run release:prepare:npm`
 - `bun run check:npm-stage`
 - `bun run check:release-config`
+- `bun run check:release-ci`
 - `bun run release:plan`
 - validate `./dist/ntk-release-manifest.json` against `CliReleaseManifest`
 
@@ -71,17 +72,20 @@ the no-runtime executable artifact for GitHub Releases.
 ## ts-release
 
 `ts-release` is root-only release orchestration. The repo installs the published
-`@mannyc1/ts-release` package as a root dev dependency; it is not a dependency
-of any publishable `@nyc-transit-kit/*` package. GitHub release workflows use
-the bundled `ts-release` action from `mannyc2/ts-release/apps/ts-release-action`
-pinned to a commit. Switch that pin to a stable action tag once the action has
-one.
+`@mannyc1/ts-release` package as a root dev dependency, currently
+`@mannyc1/ts-release@0.0.7`; it is not a dependency of any publishable
+`@nyc-transit-kit/*` package.
 
 The standard release commands call `scripts/run-ts-release.ts`, a small Bun
-adapter over the published `@mannyc1/ts-release/workflows` API:
+adapter over the published `@mannyc1/ts-release/workflows` facade. The adapter
+keeps repo-local argument parsing and no-git plan rendering, while delegating
+plan rendering, diagnostics, release phase execution, and evidence writes to
+`ts-release`:
 
 ```sh
 bun run release:plan
+bun run release:validate
+bun run release:check-ci
 ```
 
 Do not commit local `ts-release` paths, `file:` dependencies, token values, or
@@ -90,9 +94,11 @@ wiring outside committed manifests and restore the published package dependency
 before release-flow changes land.
 
 `release:plan` is safe: it renders the release plan and does not publish.
-`release:validate` requires the npm CLI and `GH_TOKEN` for the GitHub release
-target. For local releases, authenticate GitHub however you prefer; if using
-`gh`, export the token explicitly:
+`release:validate` writes validation evidence through `ts-release` and requires
+the npm CLI and `GH_TOKEN` for the GitHub release target. `release:doctor`,
+`release:check-auth`, and `release:check-ci` expose the latest static
+diagnostics from `ts-release`. For local releases, authenticate GitHub however
+you prefer; if using `gh`, export the token explicitly:
 
 ```sh
 gh auth login
@@ -102,8 +108,10 @@ export GH_TOKEN="$(gh auth token)"
 
 In GitHub Actions, pass the built-in workflow token to `gh` as
 `GH_TOKEN: ${{ github.token }}` and grant `contents: write` for jobs that create
-releases. Actual publish requires an approved workflow/action command that
-forwards explicit irreversible-operation approval:
+releases. The release workflows call the local wrapper (`bun run release ...`)
+so CI uses the exact installed `ts-release` library version. Actual publish
+requires an approved workflow command that forwards explicit
+irreversible-operation approval:
 
 ```sh
 bun run release:run --execute --approve-irreversible
@@ -195,8 +203,8 @@ auth because npm performs the token exchange during `npm publish`.
 1. Run local checks:
    `bun install`, `bun run check`, `bun run build:cli`,
    `./dist/ntk --version --json`, `bun run release:prepare:npm`,
-   `bun run check:npm-stage`, `bun run check:release-config`, and
-   `bun run release:plan`.
+   `bun run check:npm-stage`, `bun run check:release-config`,
+   `bun run check:release-ci`, and `bun run release:plan`.
 2. When curated provider scopes changed, collect local provider snapshots under
    `./tmp/provider-snapshots`, run
    `bun run check:provider-coverage -- --manifest ./tmp/provider-snapshots/manifest.json --out .release/evidence/provider-coverage.json`,
@@ -230,7 +238,7 @@ npm view @nyc-transit-kit/nyc-dot version
 npm view @nyc-transit-kit/cli version
 npm view @nyc-transit-kit/compat version
 npm view @nyc-transit-kit/fixtures version
-gh release view v0.1.1 --repo mannyc2/nyc-transit-kit
+gh release view v0.1.3 --repo mannyc2/nyc-transit-kit
 ```
 
 Download the GitHub binary artifact and run `ntk --version --json`; it should
@@ -249,7 +257,7 @@ First verify the remote state explicitly:
 for package in contracts soda3 mta nyc-open-data nyc-dot cli compat fixtures; do
   npm view "@nyc-transit-kit/${package}" version
 done
-gh release view v0.1.1 --repo mannyc2/nyc-transit-kit
+gh release view v0.1.3 --repo mannyc2/nyc-transit-kit
 ```
 
 If npm reports the configured version for every package and `gh release view`
@@ -263,17 +271,17 @@ bun install
 bun run check
 bun run build:cli
 bun run release:prepare:npm
-node -e 'const { writeFileSync } = require("node:fs"); const config = require("./release.config.json"); writeFileSync("/tmp/nyc-transit-kit-v0.1.1-notes.md", `${config.identity.notes}\n`)'
-gh release create v0.1.1 \
+node -e 'const { writeFileSync } = require("node:fs"); const config = require("./release.config.json"); writeFileSync("/tmp/nyc-transit-kit-v0.1.3-notes.md", `${config.identity.notes}\n`)'
+gh release create v0.1.3 \
   --repo mannyc2/nyc-transit-kit \
   --draft \
-  --title "v0.1.1" \
-  --notes-file /tmp/nyc-transit-kit-v0.1.1-notes.md \
+  --title "v0.1.3" \
+  --notes-file /tmp/nyc-transit-kit-v0.1.3-notes.md \
   dist/ntk \
   dist/ntk-release-manifest.json \
   .release/artifacts/*.tgz
 ```
 
-After recovery, rerun `gh release view v0.1.1 --repo mannyc2/nyc-transit-kit`.
+After recovery, rerun `gh release view v0.1.3 --repo mannyc2/nyc-transit-kit`.
 The next `Release` workflow run should then stop at the remote-state check
 instead of attempting another publish.

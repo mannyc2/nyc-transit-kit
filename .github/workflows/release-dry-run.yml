@@ -42,22 +42,13 @@ jobs:
           bun run release:prepare:npm
           bun run check:npm-stage
           bun run check:release-config
+          bun run check:release-ci
 
       - name: Validate with ts-release
-        uses: mannyc2/ts-release/apps/ts-release-action@aa452f38ca07d1fa6d439f2bbe89d9852806ee42
-        with:
-          command: validate
-          config: release.config.json
-          write-step-summary: "true"
+        run: bun run release validate --config release.config.json
 
       - name: Record release plan
-        uses: mannyc2/ts-release/apps/ts-release-action@aa452f38ca07d1fa6d439f2bbe89d9852806ee42
-        with:
-          command: plan
-          config: release.config.json
-          format: markdown
-          write-step-summary: "true"
-          plan-path: .release/evidence/release-plan.md
+        run: bun run release plan --config release.config.json --format markdown --out .release/evidence/release-plan.md
 
       - name: Upload release evidence
         if: always()

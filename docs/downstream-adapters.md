@@ -10,24 +10,15 @@ adoption path, see [Getting Started](getting-started.md).
 ## Effect-Native Consumption
 
 ```ts
-import { Soda3ClientConfig } from "@nyc-transit-kit/soda3/client"
+import { soda3Layer } from "@nyc-transit-kit/soda3/client"
 import { queryRows } from "@nyc-transit-kit/soda3/query"
 import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 
 const program = queryRows({
   domain: "data.cityofnewyork.us",
   datasetId: "ycrg-ses3",
   query: "SELECT *"
-}).pipe(
-  Effect.provide(
-    Layer.mergeAll(
-      Layer.succeed(Soda3ClientConfig)({ retryTimes: 2 }),
-      FetchHttpClient.layer
-    )
-  )
-)
+}).pipe(Effect.provide(soda3Layer({ retryTimes: 2 })))
 ```
 
 Provider packages expose Effect programs and receive configuration through

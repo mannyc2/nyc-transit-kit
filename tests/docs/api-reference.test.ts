@@ -168,7 +168,7 @@ const importSmokeCases: ReadonlyArray<{
   {
     importPath: "@nyc-transit-kit/soda3/client",
     packageDirectory: "soda3",
-    exports: ["queryRows", "Soda3ClientConfig", "Soda3HttpLive"]
+    exports: ["queryRows", "Soda3ClientConfig", "Soda3HttpLive", "soda3Layer"]
   },
   {
     importPath: "@nyc-transit-kit/soda3/endpoints",
@@ -236,9 +236,40 @@ const importSmokeCases: ReadonlyArray<{
     exports: ["isUnsupportedDatasetError", "UnsupportedDatasetError"]
   },
   {
+    importPath: "@nyc-transit-kit/compat/soda3",
+    packageDirectory: "compat",
+    exports: [
+      "querySoda3Rows",
+      "exportSoda3Response",
+      "searchSoda3Catalog",
+      "isSoda3ClientError",
+      "TimeoutError"
+    ]
+  },
+  {
+    importPath: "@nyc-transit-kit/compat/mta",
+    packageDirectory: "compat",
+    exports: [
+      "probeMtaGtfsStatic",
+      "fetchMtaGtfsStaticResponse",
+      "fetchMtaJsonDirect",
+      "isMtaError"
+    ]
+  },
+  {
+    importPath: "@nyc-transit-kit/compat/nyc-open-data",
+    packageDirectory: "compat",
+    exports: ["queryNycOpenDataRows", "exportNycOpenDataResponse", "searchNycOpenData"]
+  },
+  {
     importPath: "@nyc-transit-kit/compat/nyc-dot",
     packageDirectory: "compat",
-    exports: ["queryNycDotRows"]
+    exports: [
+      "queryNycDotRows",
+      "exportNycDotResponse",
+      "isUnsupportedDatasetError",
+      "UnsupportedDatasetError"
+    ]
   },
   {
     importPath: "@nyc-transit-kit/compat/errors",

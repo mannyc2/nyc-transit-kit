@@ -26,6 +26,7 @@ import {
   socrataDateWindow,
   socrataMonthWindow,
   socrataTimestamp,
+  soda3Layer,
   soqlAnd,
   soqlEq,
   soqlIdentifier,
@@ -38,7 +39,8 @@ import {
   soqlParameterName,
   soqlSelectAll,
   soqlTimestampRange,
-  soqlYearMonthRange
+  soqlYearMonthRange,
+  TimeoutError
 } from "../src/index"
 
 const requestFixture = {
@@ -307,6 +309,72 @@ describe("@nyc-transit-kit/soda3", () => {
         pageSize: 10
       }
     })
+  })
+
+  test("provides SODA3 programs with the public layer factory", async () => {
+    const requests: Array<Request> = []
+    const result = await Effect.runPromise(
+      queryRows(requestFixture).pipe(
+        Effect.provide(
+          soda3Layer({
+            appToken: "secret-token",
+            retryTimes: 0,
+            fetch: makeFetch(async (input, init) => {
+              const request = requestFromFetchInput(input, init)
+              requests.push(request)
+              return Response.json({
+                rows: [
+                  {
+                    station: "Canal St"
+                  }
+                ]
+              })
+            })
+          })
+        )
+      )
+    )
+
+    expect(result.rows).toHaveLength(1)
+    expect(requests[0]?.headers.get("X-App-Token")).toBe("secret-token")
+  })
+
+  test("uses custom fetch from the public layer factory", async () => {
+    const requests: Array<Request> = []
+
+    await Effect.runPromise(
+      queryRows(requestFixture).pipe(
+        Effect.provide(
+          soda3Layer({
+            fetch: makeFetch(async (input, init) => {
+              const request = requestFromFetchInput(input, init)
+              requests.push(request)
+              return Response.json({
+                rows: []
+              })
+            })
+          })
+        )
+      )
+    )
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.url).toBe("https://data.cityofnewyork.us/api/v3/views/abcd-1234/query.json")
+  })
+
+  test("applies timeout config from the public layer factory", async () => {
+    const error = await failureOf(
+      queryRows(requestFixture).pipe(
+        Effect.provide(
+          soda3Layer({
+            timeoutMs: 1,
+            fetch: makeFetch(() => new Promise<Response>(() => {}))
+          })
+        )
+      )
+    )
+
+    expect(error).toBeInstanceOf(TimeoutError)
   })
 
   test("forwards SODA3 query parameters through the request body", async () => {

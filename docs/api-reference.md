@@ -86,9 +86,13 @@ Important exports:
 | `exportResponse` | `@nyc-transit-kit/soda3/export` or `@nyc-transit-kit/soda3/client` | Returns the raw export `Response`. |
 | `catalogSearch` | `@nyc-transit-kit/soda3/catalog` or `@nyc-transit-kit/soda3/client` | Searches Socrata discovery catalog. |
 | `Soda3ClientConfig` | `@nyc-transit-kit/soda3/client` | Effect service for app token, retry count, and timeout config. |
+| `soda3Layer` | `@nyc-transit-kit/soda3/client` | Explicit config and fetch layer for SODA3 programs. |
+| `soda3ConfigLayer` | `@nyc-transit-kit/soda3/client` | Builds only the SODA3 config service layer. |
+| `soda3FetchLayer` | `@nyc-transit-kit/soda3/client` | Builds the live or custom-fetch HTTP layer. |
 | `Soda3HttpLive` | `@nyc-transit-kit/soda3/client` | Live Effect HTTP layer backed by `globalThis.fetch`. |
 | `Soda3Live` | `@nyc-transit-kit/soda3/client` | Default config plus live Effect HTTP layer. |
 | `Soda3ClientConfigShape` | `@nyc-transit-kit/soda3/client` | Type for config service values. |
+| `Soda3LayerOptions` | `@nyc-transit-kit/soda3/client` | Type for `soda3Layer` options, including custom fetch. |
 | `buildQueryUrl` | `@nyc-transit-kit/soda3/endpoints` | Builds `/api/v3/views/<dataset>/query.json`. |
 | `buildExportUrl` | `@nyc-transit-kit/soda3/endpoints` | Builds SODA3 export URLs. |
 | `buildCatalogSearchUrl` | `@nyc-transit-kit/soda3/endpoints` | Builds Socrata discovery search URLs. |
@@ -125,27 +129,15 @@ Important exports:
 Effect-native SODA3 query:
 
 ```ts
-import { Soda3ClientConfig } from "@nyc-transit-kit/soda3/client"
+import { soda3Layer } from "@nyc-transit-kit/soda3/client"
 import { queryRows } from "@nyc-transit-kit/soda3/query"
 import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 
 const program = queryRows({
   domain: "data.cityofnewyork.us",
   datasetId: "ycrg-ses3",
   query: "SELECT *"
-}).pipe(
-  Effect.provide(
-    Layer.mergeAll(
-      Layer.succeed(Soda3ClientConfig)({
-        appToken: "example-token",
-        retryTimes: 2
-      }),
-      FetchHttpClient.layer
-    )
-  )
-)
+}).pipe(Effect.provide(soda3Layer({ appToken: "example-token", retryTimes: 2 })))
 ```
 
 Parameterized SoQL fragments:
@@ -491,11 +483,50 @@ duplicate endpoint construction, retries, schemas, or provider logic.
 | Import path | Purpose |
 | --- | --- |
 | `@nyc-transit-kit/compat` | Convenience root for Promise wrappers. |
-| `@nyc-transit-kit/compat/soda3` | `querySoda3Rows`, `exportSoda3Response`, `searchSoda3Catalog`, `Soda3CompatOptions`. |
-| `@nyc-transit-kit/compat/mta` | `fetchMtaGtfsStaticBytes`, `probeMtaGtfsRealtime`, `MtaCompatOptions`. |
-| `@nyc-transit-kit/compat/nyc-open-data` | `queryNycOpenDataRows`, `searchNycOpenData`. |
-| `@nyc-transit-kit/compat/nyc-dot` | `queryNycDotRows`. |
+| `@nyc-transit-kit/compat/soda3` | `querySoda3Rows`, `exportSoda3Response`, `searchSoda3Catalog`, `Soda3CompatOptions`, SODA3 errors, and `isSoda3ClientError`. |
+| `@nyc-transit-kit/compat/mta` | MTA GTFS static, GTFS realtime, JSON direct, Open Data Promise wrappers, MTA errors, and `isMtaError`. |
+| `@nyc-transit-kit/compat/nyc-open-data` | `queryNycOpenDataRows`, `exportNycOpenDataResponse`, `searchNycOpenData`. |
+| `@nyc-transit-kit/compat/nyc-dot` | `queryNycDotRows`, `exportNycDotResponse`, `UnsupportedDatasetError`, and `isUnsupportedDatasetError`. |
 | `@nyc-transit-kit/compat/errors` | Shared native error re-exports, provider-family guards, and `isTransitKitCompatError`. |
+
+Compat means Promise facade over Effect programs. It does not mean SODA2
+compatibility, legacy `/resource/` endpoint compatibility, or protocol
+compatibility. Promise wrappers reject with the same native typed errors as the
+underlying Effect program, but TypeScript does not type Promise rejection
+channels.
+
+| Native operation | Compat wrapper | Options |
+| --- | --- | --- |
+| `queryRows` | `querySoda3Rows` | `Soda3CompatOptions` |
+| `exportResponse` | `exportSoda3Response` | `Soda3CompatOptions` |
+| `catalogSearch` | `searchSoda3Catalog` | `Soda3CompatOptions` |
+| `queryNycDotDataset` | `queryNycDotRows` | `Soda3CompatOptions` |
+| `exportNycDotDataset` | `exportNycDotResponse` | `Soda3CompatOptions` |
+| `queryNycOpenDataDataset` | `queryNycOpenDataRows` | `Soda3CompatOptions` |
+| `exportNycOpenDataDataset` | `exportNycOpenDataResponse` | `Soda3CompatOptions` |
+| `searchNycOpenDataCatalog` | `searchNycOpenData` | `Soda3CompatOptions` |
+| `probeGtfsStatic` | `probeMtaGtfsStatic` | `MtaCompatOptions` |
+| `fetchGtfsStaticResponse` | `fetchMtaGtfsStaticResponse` | `MtaCompatOptions` |
+| `fetchGtfsStatic` | `fetchMtaGtfsStaticBytes` | `MtaCompatOptions` |
+| `probeGtfsRealtime` | `probeMtaGtfsRealtime` | `MtaCompatOptions` |
+| `captureGtfsRealtime` | `captureMtaGtfsRealtime` | `MtaCompatOptions` |
+| `fetchMtaJsonDirect` | `fetchMtaJsonDirect` | `MtaCompatOptions` |
+| `queryMtaOpenData` | `queryMtaOpenDataRows` | `Soda3CompatOptions` |
+
+Native-only surfaces include synchronous descriptor lookup helpers and low-level
+Effect-native decoder helpers.
+
+Compat error guards by family:
+
+| Family | Guard | Error tags |
+| --- | --- | --- |
+| SODA3 | `isSoda3ClientError` | `InvalidInputError`, `ProviderHttpError`, `ProviderContractError`, `TimeoutError`, `RetryExhaustedError` |
+| MTA | `isMtaError` | `MtaHttpError`, `MtaDecodeError`, `MtaInvalidInputError` |
+| NYC DOT descriptors | `isUnsupportedDatasetError` | `UnsupportedDatasetError` |
+
+`isTransitKitCompatError` composes those native guards. It narrows errors
+created by this package family; it is not a loose structural check for arbitrary
+objects that happen to contain a matching `_tag`.
 
 Promise compat example:
 
@@ -515,18 +546,6 @@ try {
   }
 }
 ```
-
-Compat error guards by family:
-
-| Family | Guard | Error tags |
-| --- | --- | --- |
-| SODA3 | `isSoda3ClientError` | `InvalidInputError`, `ProviderHttpError`, `ProviderContractError`, `TimeoutError`, `RetryExhaustedError` |
-| MTA | `isMtaError` | `MtaHttpError`, `MtaDecodeError`, `MtaInvalidInputError` |
-| NYC DOT descriptors | `isUnsupportedDatasetError` | `UnsupportedDatasetError` |
-
-`isTransitKitCompatError` composes those native guards. It narrows errors
-created by this package family; it is not a loose structural check for arbitrary
-objects that happen to contain a matching `_tag`.
 
 ## `@nyc-transit-kit/cli`
 

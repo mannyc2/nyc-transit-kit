@@ -124,12 +124,13 @@ export const fetchMtaJsonDirect = Effect.fn("Mta.fetchMtaJsonDirect")(function* 
       })
     )
   )
+  const contentType = response.headers["content-type"]
 
   return MtaJsonDirectFetchResult.make({
     surface: request.surface,
     status: response.status,
     url: redactMtaJsonDirectUrl(url.toString()),
-    contentType: response.headers["content-type"],
-    json
+    json,
+    ...(contentType === undefined ? {} : { contentType })
   })
 })
