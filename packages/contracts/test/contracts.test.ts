@@ -41,7 +41,7 @@ import {
 describe("@nyc-transit-kit/contracts", () => {
   test("exposes initial schema contracts", () => {
     expect(packageName).toBe("@nyc-transit-kit/contracts")
-    expect(releaseVersion).toBe("0.1.1")
+    expect(releaseVersion).toBe("0.1.2")
     expect(schemaVersion).toBe("0.1.0")
     expect(ApiFamily).toBeDefined()
     expect(Soda3Operation).toBeDefined()

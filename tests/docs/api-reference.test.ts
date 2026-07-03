@@ -115,9 +115,9 @@ const typecheckTypeScriptFences = async (fences: ReadonlyArray<NamedTypeScriptFe
             paths: {
               ...paths,
               effect: [
-                "node_modules/.bun/effect@4.0.0-beta.83/node_modules/effect/dist/index.d.ts"
+                "node_modules/.bun/effect@4.0.0-beta.92/node_modules/effect/dist/index.d.ts"
               ],
-              "effect/*": ["node_modules/.bun/effect@4.0.0-beta.83/node_modules/effect/dist/*.d.ts"]
+              "effect/*": ["node_modules/.bun/effect@4.0.0-beta.92/node_modules/effect/dist/*.d.ts"]
             },
             typeRoots: [join(rootPath, "node_modules", "@types")]
           },

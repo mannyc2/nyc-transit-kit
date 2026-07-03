@@ -1,6 +1,6 @@
 {
   "name": "nyc-transit-kit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "workspaces": {
@@ -8,8 +8,8 @@
       "packages/*"
     ],
     "catalog": {
-      "@effect/platform-bun": "4.0.0-beta.83",
-      "effect": "4.0.0-beta.83",
+      "@effect/platform-bun": "4.0.0-beta.92",
+      "effect": "4.0.0-beta.92",
       "gtfs-realtime-bindings": "2.0.0"
     },
     "catalogs": {
@@ -19,6 +19,9 @@
         "typescript": "6.0.3"
       }
     }
+  },
+  "overrides": {
+    "@effect/platform-node-shared": "4.0.0-beta.92"
   },
   "scripts": {
     "prepare": "./scripts/prepare-effect.sh && effect-language-service patch",
