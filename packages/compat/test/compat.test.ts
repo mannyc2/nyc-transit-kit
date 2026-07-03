@@ -399,6 +399,7 @@ describe("@nyc-transit-kit/compat", () => {
     expect(errorsModule.isSoda3ClientError).toBe(isSoda3ClientError)
     expect(isSoda3ClientError(error)).toBe(true)
     expect(error).toBeInstanceOf(ProviderHttpError)
+    expect(isTransitKitCompatError({ _tag: "ProviderHttpError" })).toBe(false)
   })
 
   test("does not export the old NYC Open Data method bag", async () => {

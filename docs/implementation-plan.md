@@ -67,11 +67,11 @@ product boundary.
 
 The repository uses the Effect beta line from the start:
 
-- `effect@4.0.0-beta.83`
-- `@effect/platform-bun@4.0.0-beta.83`
+- `effect@4.0.0-beta.92`
+- `@effect/platform-bun@4.0.0-beta.92`
 
 As of 2026-06-16, `@effect/cli@latest` is `0.75.2` and peers the Effect 3 line,
-while `effect` and `@effect/platform-bun` expose `4.0.0-beta.83` on their beta
+while `effect` and `@effect/platform-bun` expose `4.0.0-beta.92` on their beta
 dist-tags. The repository therefore keeps `@effect/cli` out of the workspace for
 now.
 
@@ -85,7 +85,7 @@ CLI work should follow this rule:
 - add `@effect/cli` only after verifying a release that peers the Effect 4 beta
   line.
 - rely on architecture tests to reject any Effect runtime package that is not
-  pinned to `4.0.0-beta.83`.
+  pinned to `4.0.0-beta.92`.
 - keep `@effect/language-service` as root-only developer tooling. It is versioned
   independently from the runtime packages and is patched into workspace
   TypeScript by the root prepare script.

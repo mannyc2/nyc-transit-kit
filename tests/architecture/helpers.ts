@@ -27,7 +27,7 @@ export const soda3GuardExtensions = new Set([
   ".txt",
   ".csv"
 ])
-export const expectedEffectVersion = "4.0.0-beta.83"
+export const expectedEffectVersion = "4.0.0-beta.92"
 export const expectedEffectToolingVersions: Record<string, string> = {
   "@effect/language-service": "0.86.2"
 }
