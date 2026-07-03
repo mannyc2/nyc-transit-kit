@@ -6,7 +6,7 @@ NYC and MTA transit data APIs.
 ## Core Rules
 
 - Keep all Effect packages on the Effect 4 beta line. Current pinned versions:
-  `effect@4.0.0-beta.83` and `@effect/platform-bun@4.0.0-beta.83`.
+  `effect@4.0.0-beta.92` and `@effect/platform-bun@4.0.0-beta.92`.
 - Do not install `@effect/cli@0.75.2`; it peers the Effect 3 line. Add
   `@effect/cli` only when a release compatible with Effect 4 beta is available.
 - Use Bun for package management, scripts, tests, and binary builds.
