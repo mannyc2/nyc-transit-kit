@@ -46,79 +46,7 @@ jobs:
 
       - name: Check remote release state
         id: remote-state
-        run: |
-          node <<'NODE'
-          const { appendFileSync, readFileSync } = require("node:fs")
-          const { spawnSync } = require("node:child_process")
-
-          const config = JSON.parse(readFileSync("release.config.json", "utf8"))
-          const version = config.identity.version
-          const tag = config.identity.tag ?? `v${version}`
-          const npmTargets = config.targets.filter((target) => target._tag === "NpmRegistryTarget")
-          const githubTarget = config.targets.find((target) => target._tag === "GitHubReleaseTarget")
-
-          if (githubTarget === undefined) {
-            throw new Error("release.config.json is missing a GitHub release target")
-          }
-
-          const run = (command, args) => spawnSync(command, args, { encoding: "utf8" })
-          const npmStates = npmTargets.map((target) => {
-            const result = run("npm", [
-              "view",
-              `${target.packageName}@${version}`,
-              "version",
-              "--registry",
-              target.registry
-            ])
-            const text = `${result.stdout}\n${result.stderr}`.toLowerCase()
-            const missing = text.includes("not found") || text.includes("404") || text.includes("e404")
-            if (result.status === 0) {
-              return { target, state: "published" }
-            }
-            if (missing) {
-              return { target, state: "missing" }
-            }
-            throw new Error(`npm view failed for ${target.packageName}@${version}: ${result.stderr || result.stdout}`)
-          })
-
-          const github = run("gh", [
-            "release",
-            "view",
-            tag,
-            "--repo",
-            githubTarget.repository,
-            "--json",
-            "isDraft,tagName"
-          ])
-          const githubText = `${github.stdout}\n${github.stderr}`.toLowerCase()
-          const githubMissing = github.status !== 0 && (
-            githubText.includes("not found") || githubText.includes("404")
-          )
-          if (github.status !== 0 && !githubMissing) {
-            throw new Error(`gh release view failed for ${tag}: ${github.stderr || github.stdout}`)
-          }
-
-          const npmPublished = npmStates.every((entry) => entry.state === "published")
-          const npmMissing = npmStates.every((entry) => entry.state === "missing")
-          const githubExists = github.status === 0
-          let shouldRelease = "false"
-          let status = "complete"
-          let reason = `${tag} already exists remotely.`
-
-          if (npmMissing && githubMissing) {
-            shouldRelease = "true"
-            status = "ready"
-            reason = `${tag} is missing from npm and GitHub.`
-          } else if (!(npmPublished && githubExists)) {
-            const npmSummary = npmStates.map((entry) => `${entry.target.packageName}:${entry.state}`).join(", ")
-            throw new Error(`partial release state for ${tag}: npm=[${npmSummary}] github=${githubExists ? "present" : "missing"}`)
-          }
-
-          appendFileSync(process.env.GITHUB_OUTPUT, `should_release=${shouldRelease}\n`)
-          appendFileSync(process.env.GITHUB_OUTPUT, `status=${status}\n`)
-          appendFileSync(process.env.GITHUB_OUTPUT, `reason=${reason}\n`)
-          console.log(`release eligibility: ${status}; should_release=${shouldRelease}; ${reason}`)
-          NODE
+        run: bun run release:remote-state --config release.config.json --settle-attempts 36 --settle-delay-ms 5000
 
       - name: Stop when release already exists
         if: steps.remote-state.outputs.should_release != 'true'
@@ -198,7 +126,11 @@ jobs:
           bun run check:release-ci
 
       - name: Run approved release
-        run: bun run release run --config release.config.json --execute --approve-irreversible
+        run: |
+          if ! bun run release run --config release.config.json --execute --approve-irreversible; then
+            echo "Release run failed; checking whether remote state completed after propagation delay."
+            bun run release:remote-state --config release.config.json --require-complete --settle-attempts 36 --settle-delay-ms 5000
+          fi
 
       - name: Upload release evidence
         if: always()

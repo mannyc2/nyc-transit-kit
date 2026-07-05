@@ -266,7 +266,7 @@
       "id": "github",
       "repository": "mannyc2/nyc-transit-kit",
       "tokenEnv": "GH_TOKEN",
-      "draft": true,
+      "draft": false,
       "prerelease": false,
       "dryRunSupport": "simulated",
       "mutability": "mutable-release",

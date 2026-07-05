@@ -1,6 +1,6 @@
 # Release Plan
 
-Versions 0.1.0 through 0.1.4 are published to npm under
+Versions 0.1.0 through 0.2.0 are published to npm under
 `@nyc-transit-kit/*`. The package release version is separate from the
 CLI/schema contract version exposed as `schemaVersion`.
 
@@ -124,7 +124,9 @@ irreversible-operation approval:
 bun run release:run --execute --approve-irreversible
 ```
 
-The v0 GitHub release target is configured as a draft release first.
+The protected GitHub `release` environment is the human approval gate. After
+that approval, the GitHub release target creates a published release so later
+remote-state checks can observe a completed tag.
 
 ## NPM Publish Auth
 
@@ -199,11 +201,14 @@ permissions:
 The `Release` workflow in `.github/workflows/release.yml` runs on pushes to
 `main` and on manual dispatch. It checks remote npm/GitHub state first, skips
 when the configured version already exists, and executes only when every npm
-package plus the GitHub release tag is missing. The execute job uses GitHub OIDC
-instead of `NPM_TOKEN`; it needs `id-token: write` for npm trusted publishing
-and `contents: write` for the GitHub release. Trusted publishing requires Node
-22.14.0 or newer and npm 11.5.1 or newer. `npm whoami` does not validate OIDC
-auth because npm performs the token exchange during `npm publish`.
+package plus the GitHub release tag is missing. The repo-local remote-state
+check retries partial states so npm registry propagation has time to settle,
+and the execute job rechecks remote state if `ts-release` fails after publishing
+side effects. The execute job uses GitHub OIDC instead of `NPM_TOKEN`; it needs
+`id-token: write` for npm trusted publishing and `contents: write` for the
+GitHub release. Trusted publishing requires Node 22.14.0 or newer and npm
+11.5.1 or newer. `npm whoami` does not validate OIDC auth because npm performs
+the token exchange during `npm publish`.
 
 ## GitHub Runbook
 
@@ -229,7 +234,8 @@ auth because npm performs the token exchange during `npm publish`.
    `bun run release:trust-publishing`, and review the resulting config change.
 7. Review the rendered `ts-release` plan. Confirm every npm target points at
    `.release/npm/<package>`, has the matching `@nyc-transit-kit/*`
-   `packageName`, and the GitHub target creates a draft release.
+   `packageName`, and the GitHub target creates a published release after
+   workflow environment approval.
 8. Publish by merging the release/version change to `main` or manually running
    `Release` on `main`. Configure the GitHub `release` environment with required
    reviewers if execution should wait for human approval before npm/GitHub
@@ -268,10 +274,17 @@ gh release view v0.2.0 --repo mannyc2/nyc-transit-kit
 ```
 
 If npm reports the configured version for every package and `gh release view`
+reports a draft release, publish it with:
+
+```sh
+gh release edit v0.2.0 --repo mannyc2/nyc-transit-kit --draft=false
+```
+
+If npm reports the configured version for every package and `gh release view`
 reports the tag is missing, recover only the GitHub release side. Rebuild the
 local release artifacts from the exact commit recorded in `release.config.json`,
-review `.release/artifacts` and `dist`, then create the missing draft GitHub
-release with the configured tag and notes:
+review `.release/artifacts` and `dist`, then create the missing published
+GitHub release with the configured tag and notes:
 
 ```sh
 bun install
@@ -281,7 +294,6 @@ bun run release:prepare:npm
 node -e 'const { writeFileSync } = require("node:fs"); const config = require("./release.config.json"); writeFileSync("/tmp/nyc-transit-kit-v0.2.0-notes.md", `${config.identity.notes}\n`)'
 gh release create v0.2.0 \
   --repo mannyc2/nyc-transit-kit \
-  --draft \
   --title "v0.2.0" \
   --notes-file /tmp/nyc-transit-kit-v0.2.0-notes.md \
   dist/ntk \
