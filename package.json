@@ -53,6 +53,7 @@
     "release:doctor": "bun run scripts/run-ts-release.ts doctor --config release.config.json",
     "release:check-auth": "bun run scripts/run-ts-release.ts check-auth --config release.config.json",
     "release:check-ci": "bun run scripts/run-ts-release.ts check-ci --config release.config.json --workflow .github/workflows/release.yml",
+    "release:remote-state": "bun run scripts/check-release-remote-state.ts",
     "release:validate": "bun run scripts/run-ts-release.ts validate --config release.config.json",
     "release:run": "bun run scripts/run-ts-release.ts run --config release.config.json",
     "release:trust-publishing": "bun run scripts/switch-release-config-to-trusted-publishing.ts"

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { join } from "node:path"
+import { classifyReleaseState } from "../../scripts/check-release-remote-state"
 import {
   dependencyGroups,
   expectedEffectToolingVersions,
@@ -17,6 +18,11 @@ import {
 } from "./helpers"
 
 describe("release policy", () => {
+  const publishedPackageStates = expectedPackages.map((packageName) => ({
+    packageName: `@nyc-transit-kit/${packageName}`,
+    state: "published" as const
+  }))
+
   test("configures Effect language service for workspace TypeScript", async () => {
     const offenders: Array<string> = []
     const rootManifest = await readJsonRecord(join(rootPath, "package.json"))
@@ -79,6 +85,86 @@ describe("release policy", () => {
           }
         }
       }
+    }
+
+    expect(offenders).toEqual([])
+  })
+
+  test("classifies immutable release remote state", () => {
+    const missingPackageStates = publishedPackageStates.map((entry) => ({
+      ...entry,
+      state: "missing" as const
+    }))
+    const mixedPackageStates = publishedPackageStates.map((entry, index) => ({
+      ...entry,
+      state: index === 0 ? ("published" as const) : ("missing" as const)
+    }))
+
+    expect(
+      classifyReleaseState({
+        githubState: "missing",
+        npmStates: missingPackageStates,
+        tag: "v1.2.3"
+      })
+    ).toMatchObject({
+      shouldRelease: true,
+      status: "ready"
+    })
+
+    expect(
+      classifyReleaseState({
+        githubState: "published",
+        npmStates: publishedPackageStates,
+        tag: "v1.2.3"
+      })
+    ).toMatchObject({
+      shouldRelease: false,
+      status: "complete"
+    })
+
+    expect(
+      classifyReleaseState({
+        githubState: "draft",
+        npmStates: publishedPackageStates,
+        tag: "v1.2.3"
+      })
+    ).toMatchObject({
+      shouldRelease: false,
+      status: "partial"
+    })
+
+    expect(
+      classifyReleaseState({
+        githubState: "missing",
+        npmStates: mixedPackageStates,
+        tag: "v1.2.3"
+      })
+    ).toMatchObject({
+      shouldRelease: false,
+      status: "partial"
+    })
+  })
+
+  test("keeps release workflow on the shared remote-state guard", async () => {
+    const offenders: Array<string> = []
+    const workflow = await Bun.file(join(rootPath, ".github/workflows/release.yml")).text()
+    const releaseConfig = await readJsonRecord(join(rootPath, "release.config.json"))
+    const targets = Array.isArray(releaseConfig.targets) ? releaseConfig.targets : []
+    const githubTarget = targets.find(
+      (target) => isRecord(target) && target._tag === "GitHubReleaseTarget"
+    )
+
+    if (!workflow.includes("bun run release:remote-state")) {
+      offenders.push("release workflow must use the repo-local remote-state guard")
+    }
+    if (workflow.includes("node <<'NODE'")) {
+      offenders.push("release workflow must not inline the remote-state guard")
+    }
+    if (!workflow.includes("--require-complete")) {
+      offenders.push("execute job must recheck completed remote state after release failures")
+    }
+    if (!isRecord(githubTarget) || githubTarget.draft !== false) {
+      offenders.push("GitHub release target must publish after release environment approval")
     }
 
     expect(offenders).toEqual([])
