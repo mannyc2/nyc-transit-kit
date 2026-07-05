@@ -5,16 +5,18 @@ import * as Effect from "effect/Effect"
 import * as CliError from "effect/unstable/cli/CliError"
 import * as Command from "effect/unstable/cli/Command"
 import { rootCommand } from "./commands/root"
-import { apiFamilyFor, commandLabel, writeJson } from "./commands/shared"
-import { CliCommandContext } from "./commands/types"
-import { localBinaryName } from "./index"
 import {
+  apiFamilyFor,
+  CliCommandContext,
+  commandLabel,
   errorEnvelope,
   packageBuildCommit,
   packageBuildTarget,
   packageVersion,
-  successEnvelope
-} from "./output"
+  successEnvelope,
+  writeJson
+} from "./commands/shared"
+import { localBinaryName } from "./index"
 import { makeCliRuntime } from "./runtime"
 
 type CommandRunResult =
@@ -34,27 +36,14 @@ type JsonErrorDetails = {
 
 const noop = () => undefined
 
-const quietConsole: Console.Console = {
-  assert: noop,
-  clear: noop,
-  count: noop,
-  countReset: noop,
-  debug: noop,
-  dir: noop,
-  dirxml: noop,
-  error: noop,
-  group: noop,
-  groupCollapsed: noop,
-  groupEnd: noop,
-  info: noop,
-  log: noop,
-  table: noop,
-  time: noop,
-  timeEnd: noop,
-  timeLog: noop,
-  trace: noop,
-  warn: noop
-}
+const consoleMethodNames =
+  "assert clear count countReset debug dir dirxml error group groupCollapsed groupEnd info log table time timeEnd timeLog trace warn".split(
+    " "
+  ) as ReadonlyArray<keyof Console.Console>
+
+const quietConsole = Object.fromEntries(
+  consoleMethodNames.map((name) => [name, noop])
+) as unknown as Console.Console
 
 const stripRootCommand = (path: ReadonlyArray<string>) =>
   path[0] === localBinaryName ? path.slice(1) : path

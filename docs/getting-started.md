@@ -17,7 +17,7 @@ from Bun or from a TypeScript toolchain that can compile TypeScript in
 dependencies.
 
 ```sh
-bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.1.4
+bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.2.0
 bun add @nyc-transit-kit/mta @nyc-transit-kit/nyc-dot
 bun add @nyc-transit-kit/compat
 ```
@@ -35,9 +35,10 @@ two Effect copies with incompatible types.
 | --- | --- | --- |
 | 0.1.0 / 0.1.1 | 4.0.0-beta.83 | 4.0.0-beta.83 |
 | 0.1.2 / 0.1.3 / 0.1.4 | 4.0.0-beta.92 | 4.0.0-beta.92 |
+| 0.2.0 | 4.0.0-beta.92 | 4.0.0-beta.92 |
 
 ```sh
-bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.1.4
+bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.2.0
 ```
 
 The tested downstream TypeScript envelope is TS 6.x with `strict`,
@@ -50,6 +51,41 @@ The tested downstream TypeScript envelope is TS 6.x with `strict`,
 `effect` is currently an exact regular dependency, not a peer dependency. A
 version mismatch surfaces as a duplicate install rather than an install-time
 conflict.
+
+## Migrating 0.1.x To 0.2.0
+
+0.2.0 is the first surface-compression release. It keeps package boundaries and
+runtime behavior intact, but removes compatibility aliases and folds several
+small subpaths into their owning concepts.
+
+Use these import moves when updating 0.1.x callers:
+
+| 0.1.x import or name | 0.2.0 replacement |
+| --- | --- |
+| `@nyc-transit-kit/contracts/descriptor-registry` | `@nyc-transit-kit/contracts/descriptors` |
+| `@nyc-transit-kit/contracts/nyc-dot` | `@nyc-transit-kit/contracts/descriptors` |
+| `@nyc-transit-kit/contracts/nyc-open-data` | `@nyc-transit-kit/contracts/descriptors` |
+| root `*Type` schema aliases from `@nyc-transit-kit/contracts` | import the original schema-inferred type names directly |
+| `Soda3Operation` | removed; branch on the request shape or command context instead |
+| `CliEnvelopeStatus` | removed; use `CliEnvelope` and its `ok` discriminant |
+| `@nyc-transit-kit/mta/datasets` | `@nyc-transit-kit/mta/open-data` or `@nyc-transit-kit/mta/feeds` |
+| `@nyc-transit-kit/mta/elevator-escalator` | `@nyc-transit-kit/mta/json-direct` |
+| `@nyc-transit-kit/mta/open-data-catalog` | `@nyc-transit-kit/mta/open-data` |
+| `gtfsStaticSurface`, `gtfsRealtimeSurface` | removed from the MTA root surface; use feed descriptors from `@nyc-transit-kit/mta/feeds` |
+| `@nyc-transit-kit/nyc-open-data/query` | `@nyc-transit-kit/nyc-open-data/client` |
+| `@nyc-transit-kit/nyc-open-data/catalog` | `@nyc-transit-kit/nyc-open-data/client` |
+| `@nyc-transit-kit/nyc-open-data/datasets` | `@nyc-transit-kit/nyc-open-data/descriptors` |
+| deprecated NYC Open Data DOT descriptor aliases | use DOT descriptors from `@nyc-transit-kit/nyc-dot/datasets` |
+| `@nyc-transit-kit/nyc-dot/client` | `@nyc-transit-kit/nyc-dot/datasets` |
+| `@nyc-transit-kit/nyc-dot/errors` | `@nyc-transit-kit/nyc-dot/datasets` |
+| `@nyc-transit-kit/nyc-dot/bus-lanes` | `@nyc-transit-kit/nyc-dot/rows` |
+| `@nyc-transit-kit/nyc-dot/traffic-speeds` | `@nyc-transit-kit/nyc-dot/rows` |
+| `@nyc-transit-kit/nyc-dot/traffic-volume` | `@nyc-transit-kit/nyc-dot/rows` |
+| compat error imports from `@nyc-transit-kit/compat/soda3`, `/mta`, `/nyc-open-data`, or `/nyc-dot` | `@nyc-transit-kit/compat/errors` or the compat package root |
+| CLI source `*CommandPaths` arrays | removed; use the command tree itself rather than source-level path arrays |
+
+The new `@nyc-transit-kit/soda3/transport` subpath exposes the shared low-level
+transport policy helpers used by SODA3 and MTA provider packages.
 
 ## Effect-Native Query
 
@@ -74,7 +110,7 @@ Provider packages add domain defaults, curated descriptors, and selected typed
 adapters on top of the generic SODA3 layer.
 
 ```ts
-import { queryNycDotDataset } from "@nyc-transit-kit/nyc-dot/client"
+import { queryNycDotDataset } from "@nyc-transit-kit/nyc-dot/datasets"
 import { soda3Layer } from "@nyc-transit-kit/soda3/client"
 import * as Effect from "effect/Effect"
 

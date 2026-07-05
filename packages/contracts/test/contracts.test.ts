@@ -32,7 +32,6 @@ import {
   SocrataDomain,
   Soda3CatalogSearchResponse,
   Soda3ExportRequest,
-  Soda3Operation,
   Soda3QueryRequest,
   Soda3QueryResponse,
   schemaVersion
@@ -41,10 +40,9 @@ import {
 describe("@nyc-transit-kit/contracts", () => {
   test("exposes initial schema contracts", () => {
     expect(packageName).toBe("@nyc-transit-kit/contracts")
-    expect(releaseVersion).toBe("0.1.4")
+    expect(releaseVersion).toBe("0.2.0")
     expect(schemaVersion).toBe("0.1.0")
     expect(ApiFamily).toBeDefined()
-    expect(Soda3Operation).toBeDefined()
   })
 
   test("accepts every planned API family", () => {
@@ -57,17 +55,6 @@ describe("@nyc-transit-kit/contracts", () => {
   test("rejects unknown API families", () => {
     expect(Schema.is(ApiFamily)("private-downstream")).toBe(false)
     expect(Schema.is(ApiFamily)("")).toBe(false)
-  })
-
-  test("accepts every SODA3 operation", () => {
-    expect(Schema.is(Soda3Operation)("query")).toBe(true)
-    expect(Schema.is(Soda3Operation)("export")).toBe(true)
-    expect(Schema.is(Soda3Operation)("catalog")).toBe(true)
-  })
-
-  test("rejects SODA2-like operation names", () => {
-    expect(Schema.is(Soda3Operation)("resource")).toBe(false)
-    expect(Schema.is(Soda3Operation)("soda2")).toBe(false)
   })
 
   test("validates Socrata identifiers and domains", () => {

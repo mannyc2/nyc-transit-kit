@@ -1,10 +1,15 @@
 import type { Soda3CatalogSearchRequestInput } from "@nyc-transit-kit/contracts/soda3"
 import * as Effect from "effect/Effect"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
+import { Soda3ClientConfig } from "./client"
 import { buildCatalogSearchUrl } from "./endpoints"
-import { decodeCatalogSearchResponse, decodeJson } from "./internal/responses"
-import { Soda3ClientConfig } from "./internal/services"
-import { addHeaders, executeRequest, requestWithPolicy } from "./internal/transport"
+import {
+  addHeaders,
+  decodeCatalogSearchResponse,
+  decodeJson,
+  executeRequest,
+  requestWithPolicy
+} from "./internal/transport"
 
 export { buildCatalogSearchUrl } from "./endpoints"
 export type { Soda3CatalogSearchRequestInput }

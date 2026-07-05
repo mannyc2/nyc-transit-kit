@@ -59,3 +59,15 @@ export {
   soqlTimestampRange,
   soqlYearMonthRange
 } from "./soql"
+export type { RequestPolicyConfig } from "./transport"
+export {
+  contentLengthOf,
+  fetchHttpClientLayer,
+  httpFailureInfo,
+  httpStatusText,
+  isOkStatus,
+  redactedUrl,
+  retryableStatus,
+  toWebResponse,
+  withRequestPolicy
+} from "./transport"

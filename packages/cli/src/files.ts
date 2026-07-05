@@ -22,7 +22,29 @@ type StagedWrite = AtomicWriteEntry & {
 
 const writeBody = async (path: string, body: AtomicWriteBody) => {
   if (body instanceof Response) {
-    await Bun.file(path).write(body)
+    if (body.body === null) {
+      await Bun.write(path, new Uint8Array())
+      return
+    }
+
+    const reader = body.body.getReader()
+    const writer = Bun.file(path).writer()
+
+    try {
+      while (true) {
+        const chunk = await reader.read()
+        if (chunk.done) {
+          break
+        }
+        writer.write(chunk.value)
+      }
+      writer.end()
+    } catch (cause) {
+      writer.end()
+      throw cause
+    } finally {
+      reader.releaseLock()
+    }
   } else {
     await Bun.write(path, body)
   }

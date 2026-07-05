@@ -3,351 +3,212 @@ import { PositiveInteger } from "@nyc-transit-kit/contracts/soda3"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { InvalidInputError } from "./errors"
-
+import { decodeInput } from "./internal/decode"
 export const soqlSelectAll = "SELECT *"
-
 export type SoqlParameters = Readonly<Record<string, unknown>>
-
-export type SoqlFragment = {
-  readonly text: string
-  readonly parameters?: SoqlParameters
-}
-
-export type SocrataTimestampWindow = {
-  readonly start: string
-  readonly end: string
-}
-
-export type SocrataYearMonth = {
-  readonly year: number
-  readonly month: number
-}
-
-const soqlIdentifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
-const soqlParameterNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/
-const isoDatePartsPattern = /^(\d{4})-(\d{2})-(\d{2})$/
-
-const SoqlIdentifier = Schema.String.pipe(
-  Schema.check(
-    Schema.isPattern(soqlIdentifierPattern, {
-      message: "Expected a SoQL identifier such as route_id"
-    })
-  )
+export type SoqlFragment = Readonly<{ text: string; parameters?: SoqlParameters }>
+export type SocrataTimestampWindow = Readonly<{ start: string; end: string }>
+export type SocrataYearMonth = Readonly<{ year: number; month: number }>
+const fn = Effect.fn
+const identifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
+const parameterPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
+const datePattern = /^(\d{4})-(\d{2})-(\d{2})$/
+const patternString = (pattern: RegExp, message: string) =>
+  Schema.String.pipe(Schema.check(Schema.isPattern(pattern, { message })))
+const SoqlIdentifier = patternString(
+  identifierPattern,
+  "Expected a SoQL identifier such as route_id"
 )
-
-const SoqlParameterName = Schema.String.pipe(
-  Schema.check(
-    Schema.isPattern(soqlParameterNamePattern, {
-      message: "Expected a SoQL parameter name such as route"
-    })
-  )
+const SoqlParameterName = patternString(
+  parameterPattern,
+  "Expected a SoQL parameter name such as route"
 )
-
 const SoqlSortDirection = Schema.Literals(["ASC", "DESC"])
 export type SoqlSortDirection = typeof SoqlSortDirection.Type
-
-const SocrataYear = Schema.Int.pipe(
-  Schema.check(Schema.isGreaterThanOrEqualTo(1900)),
-  Schema.check(Schema.isLessThanOrEqualTo(9999))
-)
-
-const SocrataMonth = Schema.Int.pipe(
-  Schema.check(Schema.isGreaterThanOrEqualTo(1)),
-  Schema.check(Schema.isLessThanOrEqualTo(12))
-)
-
-const SocrataYearMonthSchema = Schema.Struct({
-  year: SocrataYear,
-  month: SocrataMonth
-})
-
+const intRange = (minimum: number, maximum: number) =>
+  Schema.Int.pipe(
+    Schema.check(Schema.isGreaterThanOrEqualTo(minimum)),
+    Schema.check(Schema.isLessThanOrEqualTo(maximum))
+  )
+const SocrataYear = intRange(1900, 9999)
+const SocrataMonth = intRange(1, 12)
+const SocrataYearMonthSchema = Schema.Struct({ year: SocrataYear, month: SocrataMonth })
 const invalidQueryInput = (message: string) =>
-  InvalidInputError.make({
-    operation: "query",
-    message
-  })
-
-const decodeQueryInput =
-  <S extends Schema.Top>(schema: S) =>
-  (input: unknown) =>
-    Schema.decodeUnknownEffect(schema)(input).pipe(
-      Effect.catchTag("SchemaError", (error) => Effect.fail(invalidQueryInput(error.message)))
-    )
-
-const decodeLimit = decodeQueryInput(PositiveInteger)
-const decodeIdentifier = decodeQueryInput(SoqlIdentifier)
-const decodeParameterName = decodeQueryInput(SoqlParameterName)
-const decodeSortDirection = decodeQueryInput(SoqlSortDirection)
-const decodeIsoDate = decodeQueryInput(IsoDate)
-const decodeYear = decodeQueryInput(SocrataYear)
-const decodeMonth = decodeQueryInput(SocrataMonth)
-const decodeYearMonth = decodeQueryInput(SocrataYearMonthSchema)
-
-const withParameters = (
-  text: string,
-  parameters: Readonly<Record<string, unknown>>
-): SoqlFragment => ({
-  text,
-  parameters
-})
-
-const withoutParameters = (text: string): SoqlFragment => ({
-  text
-})
-
-const mergeParameters = (fragments: ReadonlyArray<SoqlFragment>) =>
-  Effect.gen(function* () {
-    const parameters: Record<string, unknown> = {}
-
-    for (const fragment of fragments) {
-      for (const [key, value] of Object.entries(fragment.parameters ?? {})) {
-        if (Object.hasOwn(parameters, key)) {
-          return yield* invalidQueryInput(`Duplicate SoQL parameter name: ${key}`)
-        }
-        parameters[key] = value
+  InvalidInputError.make({ operation: "query", message })
+const decode = <S extends Schema.Top>(schema: S) => decodeInput("query", schema)
+const decodeLimit = decode(PositiveInteger)
+const decodeIdentifier = decode(SoqlIdentifier)
+const decodeParameterName = decode(SoqlParameterName)
+const decodeSortDirection = decode(SoqlSortDirection)
+const decodeIsoDate = decode(IsoDate)
+const decodeYear = decode(SocrataYear)
+const decodeMonth = decode(SocrataMonth)
+const decodeYearMonth = decode(SocrataYearMonthSchema)
+const fragment = (text: string, parameters?: SoqlParameters): SoqlFragment =>
+  parameters === undefined ? { text } : { text, parameters }
+const mergeParameters = (fragments: ReadonlyArray<SoqlFragment>) => {
+  const parameters: Record<string, unknown> = {}
+  for (const part of fragments) {
+    for (const [key, value] of Object.entries(part.parameters ?? {})) {
+      if (Object.hasOwn(parameters, key)) {
+        return Effect.fail(invalidQueryInput(`Duplicate SoQL parameter name: ${key}`))
       }
+      parameters[key] = value
     }
-
-    return Object.keys(parameters).length === 0 ? undefined : parameters
-  })
-
-const pad2 = (value: number) => value.toString().padStart(2, "0")
-
+  }
+  return Effect.succeed(Object.keys(parameters).length === 0 ? undefined : parameters)
+}
+const dateMessage = "Expected an ISO calendar date in YYYY-MM-DD format"
+const pad = (value: number, length: number) => value.toString().padStart(length, "0")
 const timestampFromParts = (year: number, month: number, day: number) =>
-  `${year.toString().padStart(4, "0")}-${pad2(month)}-${pad2(day)}T00:00:00`
-
-const dateParts = (value: string) =>
-  Effect.gen(function* () {
-    const match = isoDatePartsPattern.exec(value)
-    if (match === null) {
-      return yield* invalidQueryInput("Expected an ISO calendar date in YYYY-MM-DD format")
-    }
-
-    const yearText = match[1]
-    const monthText = match[2]
-    const dayText = match[3]
-    if (yearText === undefined || monthText === undefined || dayText === undefined) {
-      return yield* invalidQueryInput("Expected an ISO calendar date in YYYY-MM-DD format")
-    }
-
-    return {
-      year: Number(yearText),
-      month: Number(monthText),
-      day: Number(dayText)
-    }
-  })
-
-const utcTimestampFromDate = (date: Date) =>
-  Effect.gen(function* () {
-    if (Number.isNaN(date.getTime())) {
-      return yield* invalidQueryInput("Expected a valid Date")
-    }
-
-    return timestampFromParts(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate())
-  })
-
-const epochDay = (value: string) =>
-  Effect.gen(function* () {
-    const parts = yield* dateParts(value)
-    return Date.UTC(parts.year, parts.month - 1, parts.day)
-  })
-
-export const soqlLimit = Effect.fn("Soda3.soqlLimit")(function* (query: string, limit: unknown) {
-  const decodedLimit = yield* decodeLimit(limit)
-  return `${query} LIMIT ${decodedLimit}`
+  `${pad(year, 4)}-${pad(month, 2)}-${pad(day, 2)}T00:00:00`
+const datePartsOf = (value: string) => {
+  const [, yearText, monthText, dayText] = datePattern.exec(value) ?? []
+  return yearText === undefined || monthText === undefined || dayText === undefined
+    ? Effect.fail(invalidQueryInput(dateMessage))
+    : Effect.succeed({ year: +yearText, month: +monthText, day: +dayText })
+}
+export const soqlLimit = fn("Soda3.soqlLimit")(function* (query: string, limit: unknown) {
+  return `${query} LIMIT ${yield* decodeLimit(limit)}`
 })
-
-export const soqlIdentifier = Effect.fn("Soda3.soqlIdentifier")(function* (input: unknown) {
+export const soqlIdentifier = fn("Soda3.soqlIdentifier")(function* (input: unknown) {
   return yield* decodeIdentifier(input)
 })
-
-export const soqlParameterName = Effect.fn("Soda3.soqlParameterName")(function* (input: unknown) {
+export const soqlParameterName = fn("Soda3.soqlParameterName")(function* (input: unknown) {
   return yield* decodeParameterName(input)
 })
-
-export const soqlParameter = Effect.fn("Soda3.soqlParameter")(function* (
-  name: unknown,
-  value: unknown
-) {
-  const decodedName = yield* decodeParameterName(name)
-  return withParameters(`:${decodedName}`, {
-    [decodedName]: value
-  })
+export const soqlParameter = fn("Soda3.soqlParameter")(function* (name: unknown, value: unknown) {
+  const key = yield* decodeParameterName(name)
+  return fragment(`:${key}`, { [key]: value })
 })
-
-export const soqlEq = Effect.fn("Soda3.soqlEq")(function* (
+export const soqlEq = fn("Soda3.soqlEq")(function* (
   column: unknown,
   parameterName: unknown,
   value: unknown
 ) {
-  const decodedColumn = yield* decodeIdentifier(column)
-  const decodedParameterName = yield* decodeParameterName(parameterName)
-
-  return withParameters(`${decodedColumn} = :${decodedParameterName}`, {
-    [decodedParameterName]: value
-  })
+  const col = yield* decodeIdentifier(column)
+  const key = yield* decodeParameterName(parameterName)
+  return fragment(`${col} = :${key}`, { [key]: value })
 })
-
-export const soqlIn = Effect.fn("Soda3.soqlIn")(function* (
+export const soqlIn = fn("Soda3.soqlIn")(function* (
   column: unknown,
   parameterBaseName: unknown,
   values: ReadonlyArray<unknown>
 ) {
-  const decodedColumn = yield* decodeIdentifier(column)
-  const decodedParameterBaseName = yield* decodeParameterName(parameterBaseName)
-
   if (values.length === 0) {
     return yield* invalidQueryInput("SoQL IN predicates require at least one value")
   }
-
+  const col = yield* decodeIdentifier(column)
+  const base = yield* decodeParameterName(parameterBaseName)
   const parameters: Record<string, unknown> = {}
   const placeholders: Array<string> = []
-
   for (let index = 0; index < values.length; index += 1) {
-    const parameterName = `${decodedParameterBaseName}_${index + 1}`
-    parameters[parameterName] = values[index]
-    placeholders.push(`:${parameterName}`)
+    const key = `${base}_${index + 1}`
+    parameters[key] = values[index]
+    placeholders.push(`:${key}`)
   }
-
-  return withParameters(`${decodedColumn} IN (${placeholders.join(", ")})`, parameters)
+  return fragment(`${col} IN (${placeholders.join(", ")})`, parameters)
 })
-
-export const soqlIsNotNull = Effect.fn("Soda3.soqlIsNotNull")(function* (column: unknown) {
-  const decodedColumn = yield* decodeIdentifier(column)
-  return withoutParameters(`${decodedColumn} IS NOT NULL`)
+export const soqlIsNotNull = fn("Soda3.soqlIsNotNull")(function* (column: unknown) {
+  return fragment(`${yield* decodeIdentifier(column)} IS NOT NULL`)
 })
-
-export const soqlAnd = Effect.fn("Soda3.soqlAnd")(function* (
-  fragments: ReadonlyArray<SoqlFragment>
-) {
+export const soqlAnd = fn("Soda3.soqlAnd")(function* (fragments: ReadonlyArray<SoqlFragment>) {
   if (fragments.length === 0) {
     return yield* invalidQueryInput("SoQL AND composition requires at least one fragment")
   }
-
-  const parameters = yield* mergeParameters(fragments)
-  const text = fragments.map((fragment) => `(${fragment.text})`).join(" AND ")
-
-  return parameters === undefined ? withoutParameters(text) : withParameters(text, parameters)
+  return fragment(
+    fragments.map((part) => `(${part.text})`).join(" AND "),
+    yield* mergeParameters(fragments)
+  )
 })
-
-export const soqlOrderBy = Effect.fn("Soda3.soqlOrderBy")(function* (
+export const soqlOrderBy = fn("Soda3.soqlOrderBy")(function* (
   column: unknown,
   direction: unknown = "ASC"
 ) {
-  const decodedColumn = yield* decodeIdentifier(column)
-  const decodedDirection = yield* decodeSortDirection(direction)
-  return withoutParameters(`ORDER BY ${decodedColumn} ${decodedDirection}`)
+  const col = yield* decodeIdentifier(column)
+  return fragment(`ORDER BY ${col} ${yield* decodeSortDirection(direction)}`)
 })
-
-export const socrataTimestamp = Effect.fn("Soda3.socrataTimestamp")(function* (
-  date: string | Date
-) {
+export const socrataTimestamp = fn("Soda3.socrataTimestamp")(function* (date: string | Date) {
   if (date instanceof Date) {
-    return yield* utcTimestampFromDate(date)
+    if (Number.isNaN(date.getTime())) {
+      return yield* invalidQueryInput("Expected a valid Date")
+    }
+    return timestampFromParts(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate())
   }
-
   const decodedDate = yield* decodeIsoDate(date)
-  const parts = yield* dateParts(decodedDate)
+  const parts = yield* datePartsOf(decodedDate)
   return timestampFromParts(parts.year, parts.month, parts.day)
 })
-
-export const socrataMonthWindow = Effect.fn("Soda3.socrataMonthWindow")(function* (
+export const socrataMonthWindow = fn("Soda3.socrataMonthWindow")(function* (
   year: unknown,
   month: unknown
 ) {
-  const decodedYear = yield* decodeYear(year)
-  const decodedMonth = yield* decodeMonth(month)
-  const endYear = decodedMonth === 12 ? decodedYear + 1 : decodedYear
-  const endMonth = decodedMonth === 12 ? 1 : decodedMonth + 1
-
+  const y = yield* decodeYear(year)
+  const m = yield* decodeMonth(month)
+  const endYear = m === 12 ? y + 1 : y
+  const endMonth = m === 12 ? 1 : m + 1
   return {
-    start: timestampFromParts(decodedYear, decodedMonth, 1),
+    start: timestampFromParts(y, m, 1),
     end: timestampFromParts(endYear, endMonth, 1)
   }
 })
-
-export const socrataDateWindow = Effect.fn("Soda3.socrataDateWindow")(function* (
+export const socrataDateWindow = fn("Soda3.socrataDateWindow")(function* (
   startDate: unknown,
   endDate: unknown
 ) {
-  const decodedStartDate = yield* decodeIsoDate(startDate)
-  const decodedEndDate = yield* decodeIsoDate(endDate)
-  const startEpochDay = yield* epochDay(decodedStartDate)
-  const endEpochDay = yield* epochDay(decodedEndDate)
-
-  if (startEpochDay >= endEpochDay) {
+  const start = yield* datePartsOf(yield* decodeIsoDate(startDate))
+  const end = yield* datePartsOf(yield* decodeIsoDate(endDate))
+  if (
+    Date.UTC(start.year, start.month - 1, start.day) >= Date.UTC(end.year, end.month - 1, end.day)
+  ) {
     return yield* invalidQueryInput("Socrata date windows require startDate before endDate")
   }
-
   return {
-    start: yield* socrataTimestamp(decodedStartDate),
-    end: yield* socrataTimestamp(decodedEndDate)
+    start: timestampFromParts(start.year, start.month, start.day),
+    end: timestampFromParts(end.year, end.month, end.day)
   }
 })
-
-export const soqlTimestampRange = Effect.fn("Soda3.soqlTimestampRange")(function* (
+export const soqlTimestampRange = fn("Soda3.soqlTimestampRange")(function* (
   column: unknown,
   startParameterName: unknown,
   endParameterName: unknown,
-  window: SocrataTimestampWindow
+  w: SocrataTimestampWindow
 ) {
-  const decodedColumn = yield* decodeIdentifier(column)
-  const decodedStartParameterName = yield* decodeParameterName(startParameterName)
-  const decodedEndParameterName = yield* decodeParameterName(endParameterName)
-
-  if (decodedStartParameterName === decodedEndParameterName) {
-    return yield* invalidQueryInput(`Duplicate SoQL parameter name: ${decodedStartParameterName}`)
+  const col = yield* decodeIdentifier(column)
+  const s = yield* decodeParameterName(startParameterName)
+  const e = yield* decodeParameterName(endParameterName)
+  if (s === e) {
+    return yield* invalidQueryInput(`Duplicate SoQL parameter name: ${s}`)
   }
-
-  return withParameters(
-    `${decodedColumn} >= :${decodedStartParameterName} AND ${decodedColumn} < :${decodedEndParameterName}`,
-    {
-      [decodedStartParameterName]: window.start,
-      [decodedEndParameterName]: window.end
-    }
-  )
+  return fragment(`${col} >= :${s} AND ${col} < :${e}`, { [s]: w.start, [e]: w.end })
 })
-
-export const soqlMonthWindow = Effect.fn("Soda3.soqlMonthWindow")(function* (
+export const soqlMonthWindow = fn("Soda3.soqlMonthWindow")(function* (
   column: unknown,
   year: unknown,
   month: unknown,
   parameterBaseName: unknown
 ) {
-  const decodedParameterBaseName = yield* decodeParameterName(parameterBaseName)
+  const base = yield* decodeParameterName(parameterBaseName)
   const window = yield* socrataMonthWindow(year, month)
-  return yield* soqlTimestampRange(
-    column,
-    `${decodedParameterBaseName}_start`,
-    `${decodedParameterBaseName}_end`,
-    window
-  )
+  return yield* soqlTimestampRange(column, `${base}_start`, `${base}_end`, window)
 })
-
-export const soqlYearMonthRange = Effect.fn("Soda3.soqlYearMonthRange")(function* (
+export const soqlYearMonthRange = fn("Soda3.soqlYearMonthRange")(function* (
   yearColumn: unknown,
   monthColumn: unknown,
   start: unknown,
   end: unknown
 ) {
-  const decodedYearColumn = yield* decodeIdentifier(yearColumn)
-  const decodedMonthColumn = yield* decodeIdentifier(monthColumn)
-  const decodedStart = yield* decodeYearMonth(start)
-  const decodedEnd = yield* decodeYearMonth(end)
-  const startOrder = decodedStart.year * 12 + decodedStart.month
-  const endOrder = decodedEnd.year * 12 + decodedEnd.month
-
+  const yearCol = yield* decodeIdentifier(yearColumn)
+  const monthCol = yield* decodeIdentifier(monthColumn)
+  const rs = yield* decodeYearMonth(start)
+  const re = yield* decodeYearMonth(end)
+  const startOrder = rs.year * 12 + rs.month
+  const endOrder = re.year * 12 + re.month
   if (startOrder > endOrder) {
     return yield* invalidQueryInput("SoQL year/month ranges require start before end")
   }
-
-  return withParameters(
-    `(${decodedYearColumn} > :start_year OR (${decodedYearColumn} = :start_year AND ${decodedMonthColumn} >= :start_month)) AND (${decodedYearColumn} < :end_year OR (${decodedYearColumn} = :end_year AND ${decodedMonthColumn} <= :end_month))`,
-    {
-      start_year: decodedStart.year,
-      start_month: decodedStart.month,
-      end_year: decodedEnd.year,
-      end_month: decodedEnd.month
-    }
+  return fragment(
+    `(${yearCol} > :start_year OR (${yearCol} = :start_year AND ${monthCol} >= :start_month)) AND (${yearCol} < :end_year OR (${yearCol} = :end_year AND ${monthCol} <= :end_month))`,
+    { start_year: rs.year, start_month: rs.month, end_year: re.year, end_month: re.month }
   )
 })

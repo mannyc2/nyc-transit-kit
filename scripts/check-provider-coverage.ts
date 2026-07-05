@@ -1,5 +1,5 @@
-import { mtaOpenDataDatasets } from "../packages/mta/src/datasets"
 import { mtaDirectFeeds } from "../packages/mta/src/feeds"
+import { mtaOpenDataDatasets } from "../packages/mta/src/open-data"
 import { nycDotDatasets } from "../packages/nyc-dot/src/datasets"
 import { knownNycOpenDataDatasets } from "../packages/nyc-open-data/src/descriptors"
 import {

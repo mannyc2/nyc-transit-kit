@@ -1,6 +1,6 @@
 # nyc-transit-kit SPEC
 
-Last updated: 2026-06-15
+Last updated: 2026-07-05
 
 ## Mission
 
@@ -109,6 +109,19 @@ nyc-transit-kit/
   tests/
     package-archives/
     architecture/
+```
+
+Compressed public source trees:
+
+```text
+packages/contracts/src: cli.ts descriptors.ts ids.ts index.ts metadata.ts mta.ts release.ts soda3.ts
+packages/soda3/src: catalog.ts client.ts endpoints.ts errors.ts export.ts index.ts metadata.ts query.ts soql.ts transport.ts internal/{decode,transport}.ts
+packages/mta/src: client.ts errors.ts feeds.ts gtfs-realtime.ts gtfs-static.ts index.ts json-direct.ts open-data.ts internal/{decode,open-data-descriptor-records}.ts
+packages/nyc-open-data/src: client.ts descriptors.ts index.ts internal/descriptor-records.ts
+packages/nyc-dot/src: datasets.ts index.ts rows.ts internal/descriptor-records.ts
+packages/cli/src: build-info.ts files.ts index.ts main.ts runtime.ts commands/{mta,nyc-dot,nyc-open-data,root,shared,socrata}.ts
+packages/compat/src: errors.ts index.ts mta.ts nyc-dot.ts nyc-open-data.ts soda3.ts internal/runtime.ts
+packages/fixtures/src: index.ts
 ```
 
 ## Package Responsibilities
@@ -462,14 +475,14 @@ packages/contracts/
   package.json
   tsconfig.json
   src/
-    ids.ts
-    soda3.ts
-    mta.ts
-    nyc-open-data.ts
-    nyc-dot.ts
     cli.ts
-    release.ts
+    descriptors.ts
+    ids.ts
     index.ts
+    metadata.ts
+    mta.ts
+    release.ts
+    soda3.ts
   test/
     ids.test.ts
     soda3.test.ts
@@ -509,12 +522,19 @@ packages/soda3/
   package.json
   tsconfig.json
   src/
-    client.ts
     catalog.ts
+    client.ts
     endpoints.ts
     errors.ts
-    soql.ts
+    export.ts
     index.ts
+    metadata.ts
+    query.ts
+    soql.ts
+    transport.ts
+    internal/
+      decode.ts
+      transport.ts
   test/
     client.test.ts
     catalog.test.ts
@@ -565,12 +585,17 @@ packages/mta/
   package.json
   tsconfig.json
   src/
-    gtfs-static.ts
-    gtfs-realtime.ts
-    open-data.ts
-    datasets.ts
+    client.ts
     errors.ts
+    feeds.ts
+    gtfs-realtime.ts
+    gtfs-static.ts
     index.ts
+    json-direct.ts
+    open-data.ts
+    internal/
+      decode.ts
+      open-data-descriptor-records.ts
   test/
     gtfs-static.test.ts
     gtfs-realtime.test.ts
@@ -605,10 +630,11 @@ packages/nyc-open-data/
   package.json
   tsconfig.json
   src/
-    datasets.ts
-    catalog.ts
+    client.ts
     descriptors.ts
     index.ts
+    internal/
+      descriptor-records.ts
   test/
     datasets.test.ts
     catalog.test.ts
@@ -641,11 +667,10 @@ packages/nyc-dot/
   tsconfig.json
   src/
     datasets.ts
-    bus-lanes.ts
-    traffic-speeds.ts
-    traffic-volume.ts
-    street-permits.ts
     index.ts
+    rows.ts
+    internal/
+      descriptor-records.ts
   test/
     datasets.test.ts
 ```
@@ -708,16 +733,18 @@ Create package:
 packages/cli/
   package.json
   src/
+    build-info.ts
+    files.ts
+    index.ts
     main.ts
+    runtime.ts
     commands/
-      socrata.ts
-      catalog.ts
       mta.ts
-      nyc-open-data.ts
       nyc-dot.ts
-    output.ts
-    config.ts
-    errors.ts
+      nyc-open-data.ts
+      root.ts
+      shared.ts
+      socrata.ts
   test/
     cli.test.ts
   scripts/
@@ -758,11 +785,14 @@ Create package:
 packages/compat/
   package.json
   src/
-    soda3.ts
-    mta.ts
-    nyc-open-data.ts
-    nyc-dot.ts
+    errors.ts
     index.ts
+    mta.ts
+    nyc-dot.ts
+    nyc-open-data.ts
+    soda3.ts
+    internal/
+      runtime.ts
   test/
     compat.test.ts
 ```

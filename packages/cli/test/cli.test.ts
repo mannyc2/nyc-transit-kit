@@ -515,19 +515,19 @@ describe("@nyc-transit-kit/cli", () => {
   test("keeps provider command handlers out of the entrypoint", async () => {
     const mainSource = await Bun.file(new URL("../src/main.ts", import.meta.url)).text()
 
-    expect(mainSource).not.toContain("handleSocrataQuery")
-    expect(mainSource).not.toContain("handleMtaGtfsRealtimeProbe")
+    expect(mainSource).not.toContain("Flag.")
+    expect(mainSource).not.toContain("Command.make(")
   })
 
   test("keeps Socrata command definitions in the Socrata command module", async () => {
     const source = await Bun.file(new URL("../src/commands/socrata.ts", import.meta.url)).text()
 
     expect(source).toContain('["socrata", "query"]')
-    expect(source).toContain("handleSocrataQuery")
+    expect(source).toContain("socrataCommand")
   })
 
   test("uses the live MTA realtime decoder at the CLI edge", async () => {
-    const source = await Bun.file(new URL("../src/config.ts", import.meta.url)).text()
+    const source = await Bun.file(new URL("../src/runtime.ts", import.meta.url)).text()
 
     expect(source).toContain("GtfsRealtimeDecoder.Live")
     expect(source).not.toContain("GtfsRealtimeDecoder.Passthrough")
@@ -550,10 +550,34 @@ describe("@nyc-transit-kit/cli", () => {
     }
 
     const sharedSource = await Bun.file(
-      new URL("../src/commands/soda3-shared.ts", import.meta.url)
+      new URL("../src/commands/shared.ts", import.meta.url)
     ).text()
 
     expect(sharedSource).toContain("const fileWriteError =")
+    expect(offenders).toEqual([])
+  })
+
+  test("keeps dry-run flag declarations shared", async () => {
+    const commandFiles = [
+      "socrata.ts",
+      "nyc-open-data.ts",
+      "nyc-dot.ts",
+      "mta.ts"
+    ] satisfies ReadonlyArray<string>
+    const offenders: Array<string> = []
+
+    for (const file of commandFiles) {
+      const source = await Bun.file(new URL(`../src/commands/${file}`, import.meta.url)).text()
+      if (source.includes('Flag.boolean("dry-run")')) {
+        offenders.push(file)
+      }
+    }
+
+    const sharedSource = await Bun.file(
+      new URL("../src/commands/shared.ts", import.meta.url)
+    ).text()
+
+    expect(sharedSource).toContain('Flag.boolean("dry-run")')
     expect(offenders).toEqual([])
   })
 })

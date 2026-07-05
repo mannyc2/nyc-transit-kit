@@ -7,48 +7,15 @@ import {
   type Soda3QueryRequestInput
 } from "@nyc-transit-kit/contracts/soda3"
 import * as Effect from "effect/Effect"
-import * as Schema from "effect/Schema"
-import { InvalidInputError } from "./errors"
+import { decodeInput } from "./internal/decode"
 
 export const socrataApiVersion = "v3"
 export const defaultSocrataProtocol = "https"
 export const discoveryApiHost = "api.us.socrata.com"
 
-const decodeQueryRequest = (input: unknown) =>
-  Schema.decodeUnknownEffect(Soda3QueryRequest)(input).pipe(
-    Effect.catchTag("SchemaError", (error) =>
-      Effect.fail(
-        InvalidInputError.make({
-          operation: "query",
-          message: error.message
-        })
-      )
-    )
-  )
-
-const decodeExportRequest = (input: unknown) =>
-  Schema.decodeUnknownEffect(Soda3ExportRequest)(input).pipe(
-    Effect.catchTag("SchemaError", (error) =>
-      Effect.fail(
-        InvalidInputError.make({
-          operation: "export",
-          message: error.message
-        })
-      )
-    )
-  )
-
-const decodeCatalogSearchRequest = (input: unknown) =>
-  Schema.decodeUnknownEffect(Soda3CatalogSearchRequest)(input).pipe(
-    Effect.catchTag("SchemaError", (error) =>
-      Effect.fail(
-        InvalidInputError.make({
-          operation: "catalog",
-          message: error.message
-        })
-      )
-    )
-  )
+const decodeQueryRequest = decodeInput("query", Soda3QueryRequest)
+const decodeExportRequest = decodeInput("export", Soda3ExportRequest)
+const decodeCatalogSearchRequest = decodeInput("catalog", Soda3CatalogSearchRequest)
 
 const viewUrl = (domain: string, datasetId: string, suffix: string) => {
   const url = new URL(`${defaultSocrataProtocol}://${domain}`)

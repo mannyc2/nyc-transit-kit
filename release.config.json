@@ -1,10 +1,10 @@
 {
   "identity": {
     "name": "nyc-transit-kit",
-    "version": "0.1.4",
+    "version": "0.2.0",
     "commit": "HEAD",
-    "tag": "v0.1.4",
-    "notes": "Patch release for SODA3 metadata and pagination helpers, retry policy configuration, GTFS-RT decode ergonomics, and package adoption docs."
+    "tag": "v0.2.0",
+    "notes": "Surface-compression release that keeps the eight package boundaries and CLI JSON schema stable while narrowing compatibility aliases and public subpaths."
   },
   "artifacts": [
     {
@@ -69,49 +69,49 @@
     },
     {
       "id": "github-cli-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-cli-0.1.4.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-cli-0.2.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-compat-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-compat-0.1.4.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-compat-0.2.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-contracts-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-contracts-0.1.4.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-contracts-0.2.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-fixtures-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-fixtures-0.1.4.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-fixtures-0.2.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-mta-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-mta-0.1.4.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-mta-0.2.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-nyc-dot-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-nyc-dot-0.1.4.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-nyc-dot-0.2.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-nyc-open-data-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-nyc-open-data-0.1.4.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-nyc-open-data-0.2.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-soda3-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-soda3-0.1.4.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-soda3-0.2.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     }

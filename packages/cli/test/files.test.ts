@@ -3,7 +3,7 @@ import { mkdir, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import * as Effect from "effect/Effect"
-import { writeResponseToFile } from "../src/commands/soda3-shared"
+import { writeResponseToFile } from "../src/commands/shared"
 import { atomicWrite, atomicWriteGroup } from "../src/files"
 
 const makeTempDirectory = async () => {

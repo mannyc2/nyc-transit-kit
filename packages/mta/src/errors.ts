@@ -1,16 +1,13 @@
 import * as Schema from "effect/Schema"
-
 export class MtaHttpError extends Schema.TaggedErrorClass<MtaHttpError>()("MtaHttpError", {
   operation: Schema.String,
   status: Schema.Number,
   statusText: Schema.String
 }) {}
-
 export class MtaDecodeError extends Schema.TaggedErrorClass<MtaDecodeError>()("MtaDecodeError", {
   feed: Schema.String,
   message: Schema.String
 }) {}
-
 export class MtaInvalidInputError extends Schema.TaggedErrorClass<MtaInvalidInputError>()(
   "MtaInvalidInputError",
   {
@@ -18,12 +15,10 @@ export class MtaInvalidInputError extends Schema.TaggedErrorClass<MtaInvalidInpu
     message: Schema.String
   }
 ) {}
-
 export class MtaTimeoutError extends Schema.TaggedErrorClass<MtaTimeoutError>()("MtaTimeoutError", {
   operation: Schema.String,
   timeoutMs: Schema.Number
 }) {}
-
 export class MtaRetryExhaustedError extends Schema.TaggedErrorClass<MtaRetryExhaustedError>()(
   "MtaRetryExhaustedError",
   {
@@ -32,14 +27,12 @@ export class MtaRetryExhaustedError extends Schema.TaggedErrorClass<MtaRetryExha
     message: Schema.String
   }
 ) {}
-
 export type MtaError =
   | MtaHttpError
   | MtaDecodeError
   | MtaInvalidInputError
   | MtaTimeoutError
   | MtaRetryExhaustedError
-
 export const isMtaError = (value: unknown): value is MtaError =>
   value instanceof MtaHttpError ||
   value instanceof MtaDecodeError ||

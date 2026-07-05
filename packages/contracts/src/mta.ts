@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
+import { DatasetDescriptorMetadataFields } from "./descriptors"
 import { SocrataDatasetId, SocrataDomain } from "./ids"
-import { DatasetDescriptorMetadataFields } from "./metadata"
 import { NonNegativeInteger } from "./soda3"
 
 type WidenedStringInput<T extends string> = T | (string & {})
@@ -14,17 +14,14 @@ type WidenedJsonDirectSurfaceInput<Encoded extends { readonly surface: MtaJsonDi
   Omit<Encoded, "surface"> & {
     readonly surface: WidenedStringInput<Encoded["surface"]>
   }
-
 export const GtfsFeedKind = Schema.Literals(["vehicle-positions", "trip-updates", "alerts"])
 export type GtfsFeedKind = typeof GtfsFeedKind.Type
-
 export const MtaJsonDirectSurface = Schema.Literals([
   "service-alerts",
   "elevator-escalator",
   "bus-time"
 ])
 export type MtaJsonDirectSurface = typeof MtaJsonDirectSurface.Type
-
 const Sha256Hex = Schema.String.pipe(
   Schema.check(
     Schema.isPattern(/^[a-f0-9]{64}$/, {
@@ -32,7 +29,6 @@ const Sha256Hex = Schema.String.pipe(
     })
   )
 )
-
 const IsoTimestamp = Schema.String.pipe(
   Schema.check(
     Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, {
@@ -40,12 +36,10 @@ const IsoTimestamp = Schema.String.pipe(
     })
   )
 )
-
 const GtfsRealtimeRequestFields = {
   feed: GtfsFeedKind,
   url: Schema.String
 }
-
 const GtfsRealtimeCaptureMetadataFields = {
   feed: GtfsFeedKind,
   status: Schema.Number,
@@ -54,14 +48,12 @@ const GtfsRealtimeCaptureMetadataFields = {
   capturedAt: IsoTimestamp,
   url: Schema.String
 }
-
 export class MtaGtfsStaticFetchRequest extends Schema.Class<MtaGtfsStaticFetchRequest>(
   "MtaGtfsStaticFetchRequest"
 )({
   url: Schema.String
 }) {}
 export type MtaGtfsStaticFetchRequestInput = Schema.Codec.Encoded<typeof MtaGtfsStaticFetchRequest>
-
 export class MtaGtfsStaticProbeResult extends Schema.Class<MtaGtfsStaticProbeResult>(
   "MtaGtfsStaticProbeResult"
 )({
@@ -71,14 +63,12 @@ export class MtaGtfsStaticProbeResult extends Schema.Class<MtaGtfsStaticProbeRes
   contentType: Schema.optionalKey(Schema.String),
   contentLength: Schema.optionalKey(Schema.Number)
 }) {}
-
 export class MtaGtfsRealtimeProbeRequest extends Schema.Class<MtaGtfsRealtimeProbeRequest>(
   "MtaGtfsRealtimeProbeRequest"
 )({ ...GtfsRealtimeRequestFields }) {}
 type MtaGtfsRealtimeProbeRequestEncoded = Schema.Codec.Encoded<typeof MtaGtfsRealtimeProbeRequest>
 export type MtaGtfsRealtimeProbeRequestInput =
   WidenedGtfsFeedInput<MtaGtfsRealtimeProbeRequestEncoded>
-
 export class MtaGtfsRealtimeCaptureRequest extends Schema.Class<MtaGtfsRealtimeCaptureRequest>(
   "MtaGtfsRealtimeCaptureRequest"
 )({ ...GtfsRealtimeRequestFields }) {}
@@ -87,7 +77,6 @@ type MtaGtfsRealtimeCaptureRequestEncoded = Schema.Codec.Encoded<
 >
 export type MtaGtfsRealtimeCaptureRequestInput =
   WidenedGtfsFeedInput<MtaGtfsRealtimeCaptureRequestEncoded>
-
 export class MtaGtfsRealtimeDecodedHeader extends Schema.Class<MtaGtfsRealtimeDecodedHeader>(
   "MtaGtfsRealtimeDecodedHeader"
 )({
@@ -95,7 +84,6 @@ export class MtaGtfsRealtimeDecodedHeader extends Schema.Class<MtaGtfsRealtimeDe
   incrementality: Schema.optionalKey(Schema.String),
   timestamp: Schema.optionalKey(Schema.Number)
 }) {}
-
 export class MtaGtfsRealtimeDecodedSummary extends Schema.Class<MtaGtfsRealtimeDecodedSummary>(
   "MtaGtfsRealtimeDecodedSummary"
 )({
@@ -107,7 +95,6 @@ export class MtaGtfsRealtimeDecodedSummary extends Schema.Class<MtaGtfsRealtimeD
   header: Schema.optionalKey(MtaGtfsRealtimeDecodedHeader),
   raw: Schema.Unknown
 }) {}
-
 export class MtaGtfsRealtimeProbeResult extends Schema.Class<MtaGtfsRealtimeProbeResult>(
   "MtaGtfsRealtimeProbeResult"
 )({
@@ -117,18 +104,15 @@ export class MtaGtfsRealtimeProbeResult extends Schema.Class<MtaGtfsRealtimeProb
   byteLength: NonNegativeInteger,
   decoded: Schema.optionalKey(MtaGtfsRealtimeDecodedSummary)
 }) {}
-
 export class MtaGtfsRealtimeCaptureManifest extends Schema.Class<MtaGtfsRealtimeCaptureManifest>(
   "MtaGtfsRealtimeCaptureManifest"
 )({ ...GtfsRealtimeCaptureMetadataFields }) {}
-
 export class MtaGtfsRealtimeCaptureResult extends Schema.Class<MtaGtfsRealtimeCaptureResult>(
   "MtaGtfsRealtimeCaptureResult"
 )({
   ...GtfsRealtimeCaptureMetadataFields,
   bytes: Schema.Uint8Array
 }) {}
-
 export class MtaJsonDirectFetchRequest extends Schema.Class<MtaJsonDirectFetchRequest>(
   "MtaJsonDirectFetchRequest"
 )({
@@ -141,7 +125,6 @@ export class MtaJsonDirectFetchRequest extends Schema.Class<MtaJsonDirectFetchRe
 type MtaJsonDirectFetchRequestEncoded = Schema.Codec.Encoded<typeof MtaJsonDirectFetchRequest>
 export type MtaJsonDirectFetchRequestInput =
   WidenedJsonDirectSurfaceInput<MtaJsonDirectFetchRequestEncoded>
-
 export class MtaJsonDirectFetchResult extends Schema.Class<MtaJsonDirectFetchResult>(
   "MtaJsonDirectFetchResult"
 )({
@@ -151,7 +134,6 @@ export class MtaJsonDirectFetchResult extends Schema.Class<MtaJsonDirectFetchRes
   contentType: Schema.optionalKey(Schema.String),
   json: Schema.Unknown
 }) {}
-
 export class MtaOpenDataDatasetDescriptor extends Schema.Class<MtaOpenDataDatasetDescriptor>(
   "MtaOpenDataDatasetDescriptor"
 )({
@@ -165,7 +147,6 @@ export class MtaOpenDataDatasetDescriptor extends Schema.Class<MtaOpenDataDatase
 export type MtaOpenDataDatasetDescriptorInput = Schema.Codec.Encoded<
   typeof MtaOpenDataDatasetDescriptor
 >
-
 export class MtaOpenDataCatalogRow extends Schema.Class<MtaOpenDataCatalogRow>(
   "MtaOpenDataCatalogRow"
 )({
@@ -173,7 +154,6 @@ export class MtaOpenDataCatalogRow extends Schema.Class<MtaOpenDataCatalogRow>(
   Name: Schema.optionalKey(Schema.String),
   Description: Schema.optionalKey(Schema.String)
 }) {}
-
 export class MtaElevatorEscalatorCurrentRow extends Schema.Class<MtaElevatorEscalatorCurrentRow>(
   "MtaElevatorEscalatorCurrentRow"
 )({
@@ -190,5 +170,4 @@ export class MtaElevatorEscalatorCurrentRow extends Schema.Class<MtaElevatorEsca
   isupcomingoutage: Schema.optionalKey(Schema.String),
   ismaintenanceoutage: Schema.optionalKey(Schema.String)
 }) {}
-
 export const MtaElevatorEscalatorCurrent = Schema.Array(MtaElevatorEscalatorCurrentRow)

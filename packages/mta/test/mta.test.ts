@@ -24,8 +24,6 @@ import {
   findMtaJsonDirectFeed,
   findMtaOpenDataDataset,
   GtfsRealtimeDecoder,
-  gtfsRealtimeSurface,
-  gtfsStaticSurface,
   isMtaError,
   MtaDecodeError,
   MtaHttpError,
@@ -142,10 +140,8 @@ const failureOf = <A, E>(effect: Effect.Effect<A, E>) =>
   )
 
 describe("@nyc-transit-kit/mta", () => {
-  test("declares official MTA feed surfaces", () => {
+  test("declares the MTA package", () => {
     expect(packageName).toBe("@nyc-transit-kit/mta")
-    expect(gtfsStaticSurface).toBe("gtfs-static")
-    expect(gtfsRealtimeSurface).toBe("gtfs-realtime")
   })
 
   test("declares MTA Open Data descriptors", () => {

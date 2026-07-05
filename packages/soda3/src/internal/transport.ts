@@ -1,17 +1,39 @@
-import * as Duration from "effect/Duration"
+import {
+  Soda3CatalogSearchResponse,
+  type Soda3ExportRequest,
+  type Soda3QueryRequest,
+  Soda3QueryResponse,
+  Soda3Row
+} from "@nyc-transit-kit/contracts/soda3"
 import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
+import * as Schema from "effect/Schema"
 import * as HttpClient from "effect/unstable/http/HttpClient"
+import type * as HttpClientError from "effect/unstable/http/HttpClientError"
 import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
+import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
+import { Soda3ClientConfig, type Soda3ClientConfigShape } from "../client"
 import type { Soda3ClientError } from "../errors"
 import {
   isRetryableProviderError,
+  ProviderContractError,
   ProviderHttpError,
   RetryExhaustedError,
   TimeoutError
 } from "../errors"
-import { mapHttpClientError, retryableStatus } from "./http"
-import { Soda3ClientConfig, type Soda3ClientConfigShape } from "./services"
+import {
+  httpFailureInfo,
+  httpStatusText,
+  isOkStatus,
+  retryableStatus,
+  withRequestPolicy
+} from "../transport"
+
+export { retryableStatus, toWebResponse } from "../transport"
+
+const providerRows = Schema.Array(Soda3Row)
+
+const decodeUnknown = <S extends Schema.Top>(schema: S, input: unknown) =>
+  Schema.decodeUnknownEffect(schema)(input)
 
 export const addHeaders = (config: Soda3ClientConfigShape) => ({
   accept: "application/json",
@@ -20,20 +42,83 @@ export const addHeaders = (config: Soda3ClientConfigShape) => ({
     : {})
 })
 
-export { retryableStatus }
+export const toQueryBody = (request: Soda3QueryRequest) => ({
+  query: request.query,
+  page: request.page,
+  parameters: request.parameters,
+  timeout: request.timeout,
+  includeSystem: request.includeSystem,
+  includeSynthetic: request.includeSynthetic,
+  orderingSpecifier: request.orderingSpecifier
+})
 
-const retryPolicy = (retryTimes: number, retryDelayMs: number | undefined) =>
-  retryDelayMs === undefined || retryDelayMs <= 0
-    ? {
-        times: retryTimes,
-        while: isRetryableProviderError
-      }
-    : {
-        schedule: Schedule.exponential(Duration.millis(retryDelayMs)).pipe(
-          Schedule.both(Schedule.recurs(retryTimes))
+export const toExportBody = (request: Soda3ExportRequest) => ({
+  query: request.query,
+  parameters: request.parameters,
+  timeout: request.timeout,
+  serializationOptions: request.serializationOptions
+})
+
+export const rangeHeader = (request: Soda3ExportRequest) =>
+  request.range === undefined
+    ? undefined
+    : `bytes=${request.range.start}-${request.range.end ?? ""}`
+
+export const mapHttpClientError = (operation: string, error: HttpClientError.HttpClientError) => {
+  const info = httpFailureInfo(error)
+
+  return ProviderHttpError.make({
+    operation,
+    status: info.status,
+    statusText: info.statusText,
+    retryable: info.status === 0 || retryableStatus(info.status)
+  })
+}
+
+export const decodeJson = (operation: string, response: HttpClientResponse.HttpClientResponse) =>
+  response.json.pipe(
+    Effect.catchTag("HttpClientError", () =>
+      Effect.fail(
+        ProviderContractError.make({
+          operation,
+          message: "Provider response was not valid JSON"
+        })
+      )
+    )
+  )
+
+export const decodeQueryResponse = (input: unknown) =>
+  decodeUnknown(Soda3QueryResponse, input).pipe(
+    Effect.catchTag("SchemaError", (error) =>
+      decodeUnknown(providerRows, input).pipe(
+        Effect.map((rows) =>
+          Soda3QueryResponse.make({
+            rows
+          })
         ),
-        while: isRetryableProviderError
-      }
+        Effect.catchTag("SchemaError", () =>
+          Effect.fail(
+            ProviderContractError.make({
+              operation: "query",
+              message: error.message
+            })
+          )
+        )
+      )
+    )
+  )
+
+export const decodeCatalogSearchResponse = (input: unknown) =>
+  decodeUnknown(Soda3CatalogSearchResponse, input).pipe(
+    Effect.catchTag("SchemaError", (error) =>
+      Effect.fail(
+        ProviderContractError.make({
+          operation: "catalog",
+          message: error.message
+        })
+      )
+    )
+  )
 
 export const requestWithPolicy = <A>(
   operation: string,
@@ -41,44 +126,21 @@ export const requestWithPolicy = <A>(
 ) =>
   Effect.gen(function* () {
     const config = yield* Soda3ClientConfig
-    const retryTimes = config.retryTimes ?? 0
-    const retried =
-      retryTimes > 0
-        ? effect.pipe(
-            Effect.retry(retryPolicy(retryTimes, config.retryDelayMs)),
-            Effect.catchIf(isRetryableProviderError, (error) =>
-              Effect.fail(
-                RetryExhaustedError.make({
-                  operation,
-                  attempts: retryTimes + 1,
-                  message: `Retry attempts exhausted after provider status ${error.status}`
-                })
-              )
-            )
-          )
-        : effect
-
-    const timeoutMs = config.timeoutMs
-    const timed =
-      timeoutMs === undefined
-        ? retried
-        : retried.pipe(
-            Effect.timeoutOrElse({
-              duration: timeoutMs,
-              orElse: () =>
-                Effect.fail(
-                  TimeoutError.make({
-                    operation,
-                    timeoutMs
-                  })
-                )
-            })
-          )
-
-    return yield* timed
+    return yield* withRequestPolicy(config, effect, {
+      isRetryable: isRetryableProviderError,
+      onExhausted: (attempts, error) =>
+        RetryExhaustedError.make({
+          operation,
+          attempts,
+          message: `Retry attempts exhausted after provider status ${error.status}`
+        }),
+      onTimeout: (timeoutMs) =>
+        TimeoutError.make({
+          operation,
+          timeoutMs
+        })
+    })
   })
-
-const httpStatusText = (status: number) => `HTTP ${status}`
 
 export const executeRequest = (operation: string, request: HttpClientRequest.HttpClientRequest) =>
   Effect.gen(function* () {
@@ -86,7 +148,7 @@ export const executeRequest = (operation: string, request: HttpClientRequest.Htt
       Effect.mapError((error) => mapHttpClientError(operation, error))
     )
 
-    if (response.status < 200 || response.status >= 300) {
+    if (!isOkStatus(response.status)) {
       return yield* ProviderHttpError.make({
         operation,
         status: response.status,

@@ -1,4 +1,4 @@
-import type { NycOpenDataDatasetDescriptorInput } from "@nyc-transit-kit/contracts/nyc-open-data"
+import type { NycOpenDataDatasetDescriptorInput } from "@nyc-transit-kit/contracts/descriptors"
 
 export const nycOpenDataDescriptorRecords =
   [] satisfies ReadonlyArray<NycOpenDataDatasetDescriptorInput>

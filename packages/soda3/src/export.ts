@@ -1,12 +1,17 @@
 import type { Soda3ExportRequestInput } from "@nyc-transit-kit/contracts/soda3"
 import * as Effect from "effect/Effect"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
+import { Soda3ClientConfig } from "./client"
 import { buildExportUrl, decodeSoda3ExportRequest } from "./endpoints"
 import { InvalidInputError } from "./errors"
-import { rangeHeader, toExportBody } from "./internal/bodies"
-import { toWebResponse } from "./internal/http"
-import { Soda3ClientConfig } from "./internal/services"
-import { addHeaders, executeRequest, requestWithPolicy } from "./internal/transport"
+import {
+  addHeaders,
+  executeRequest,
+  rangeHeader,
+  requestWithPolicy,
+  toExportBody,
+  toWebResponse
+} from "./internal/transport"
 
 export type { Soda3ExportRequestInput }
 

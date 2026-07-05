@@ -7,15 +7,12 @@ import {
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import {
-  busLanesLocalStreetsDescriptor,
   defaultDomain,
-  dotTrafficSpeedsDescriptor,
   findNycOpenDataDataset,
   knownNycOpenDataDatasets,
   packageName,
   queryNycOpenDataDataset,
-  searchNycOpenDataCatalog,
-  trafficVolumeCountsDescriptor
+  searchNycOpenDataCatalog
 } from "../src/index"
 
 type FetchInput = Parameters<FetchImplementation>[0]
@@ -48,13 +45,6 @@ describe("@nyc-transit-kit/nyc-open-data", () => {
       expect(String(dataset.domain)).toBe(defaultDomain)
       expect(dataset.backing).toBe("socrata")
     }
-  })
-
-  test("keeps deprecated DOT descriptor aliases outside the generic registry", () => {
-    expect(String(busLanesLocalStreetsDescriptor.id)).toBe("ycrg-ses3")
-    expect(String(dotTrafficSpeedsDescriptor.id)).toBe("i4gi-tjb9")
-    expect(String(trafficVolumeCountsDescriptor.id)).toBe("btm5-ppia")
-    expect(knownNycOpenDataDatasets).not.toContain(busLanesLocalStreetsDescriptor)
   })
 
   test("delegates dataset queries through SODA3", async () => {
