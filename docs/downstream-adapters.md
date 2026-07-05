@@ -5,7 +5,9 @@ product logic into this repository.
 
 For the current package export map, preferred subpath imports, and symbol
 reference, see the [API reference](api-reference.md). For a task-oriented
-adoption path, see [Getting Started](getting-started.md).
+adoption path, see [Getting Started](getting-started.md), especially the
+[compatibility matrix](getting-started.md#compatibility) for the exact Effect
+beta pinned by each release.
 
 ## Effect-Native Consumption
 

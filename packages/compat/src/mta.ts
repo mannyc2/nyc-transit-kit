@@ -12,6 +12,7 @@ import {
 } from "@nyc-transit-kit/mta/gtfs-static"
 import { fetchMtaJsonDirect as fetchMtaJsonDirectEffect } from "@nyc-transit-kit/mta/json-direct"
 import { queryMtaOpenData } from "@nyc-transit-kit/mta/open-data"
+import type { FetchImplementation } from "@nyc-transit-kit/soda3/client"
 import { runMtaEffect, runSoda3Effect } from "./internal/run"
 import type { Soda3CompatOptions } from "./soda3"
 
@@ -20,15 +21,20 @@ export {
   isMtaError,
   MtaDecodeError,
   MtaHttpError,
-  MtaInvalidInputError
+  MtaInvalidInputError,
+  MtaRetryExhaustedError,
+  MtaTimeoutError
 } from "./errors"
 
 type MtaJsonDirectInput = Parameters<typeof fetchMtaJsonDirectEffect>[0]
 type MtaOpenDataQueryInput = Parameters<typeof queryMtaOpenData>[0]
 
 export interface MtaCompatOptions {
-  readonly fetch?: typeof fetch
+  readonly fetch?: FetchImplementation
   readonly decoder?: GtfsRealtimeDecoderImplementation
+  readonly retryTimes?: number
+  readonly retryDelayMs?: number
+  readonly timeoutMs?: number
 }
 
 export const probeMtaGtfsStatic = (

@@ -1,12 +1,12 @@
 # Release Plan
 
-The planned first public release version is `0.1.0`. The package release
-version is separate from the CLI/schema contract version exposed as
-`schemaVersion`.
+Versions 0.1.0 through 0.1.4 are published to npm under
+`@nyc-transit-kit/*`. The package release version is separate from the
+CLI/schema contract version exposed as `schemaVersion`.
 
-No npm publication or binary distribution runs automatically for v0. Publication
-must be preceded by local checks, GitHub CI, a manual release dry-run, and a
-reviewed `ts-release` plan.
+Releases run through `.github/workflows/release.yml` with `ts-release` and npm
+trusted publishing. Publication must still be preceded by local checks, GitHub
+CI, a release plan review, and the approved release workflow.
 
 Before any release:
 
@@ -21,6 +21,8 @@ Before any release:
 - `bun run check:release-ci`
 - `bun run release:plan`
 - validate `./dist/ntk-release-manifest.json` against `CliReleaseManifest`
+- append the new version's Effect pin row to the compatibility matrix in
+  `docs/getting-started.md`
 
 Package archive checks must prove that archives do not contain workspace-private
 dependencies, `file:` dependencies, `node_modules`, `.env`, private absolute
@@ -238,7 +240,7 @@ npm view @nyc-transit-kit/nyc-dot version
 npm view @nyc-transit-kit/cli version
 npm view @nyc-transit-kit/compat version
 npm view @nyc-transit-kit/fixtures version
-gh release view v0.1.3 --repo mannyc2/nyc-transit-kit
+gh release view v0.1.4 --repo mannyc2/nyc-transit-kit
 ```
 
 Download the GitHub binary artifact and run `ntk --version --json`; it should
@@ -257,7 +259,7 @@ First verify the remote state explicitly:
 for package in contracts soda3 mta nyc-open-data nyc-dot cli compat fixtures; do
   npm view "@nyc-transit-kit/${package}" version
 done
-gh release view v0.1.3 --repo mannyc2/nyc-transit-kit
+gh release view v0.1.4 --repo mannyc2/nyc-transit-kit
 ```
 
 If npm reports the configured version for every package and `gh release view`
@@ -271,17 +273,17 @@ bun install
 bun run check
 bun run build:cli
 bun run release:prepare:npm
-node -e 'const { writeFileSync } = require("node:fs"); const config = require("./release.config.json"); writeFileSync("/tmp/nyc-transit-kit-v0.1.3-notes.md", `${config.identity.notes}\n`)'
-gh release create v0.1.3 \
+node -e 'const { writeFileSync } = require("node:fs"); const config = require("./release.config.json"); writeFileSync("/tmp/nyc-transit-kit-v0.1.4-notes.md", `${config.identity.notes}\n`)'
+gh release create v0.1.4 \
   --repo mannyc2/nyc-transit-kit \
   --draft \
-  --title "v0.1.3" \
-  --notes-file /tmp/nyc-transit-kit-v0.1.3-notes.md \
+  --title "v0.1.4" \
+  --notes-file /tmp/nyc-transit-kit-v0.1.4-notes.md \
   dist/ntk \
   dist/ntk-release-manifest.json \
   .release/artifacts/*.tgz
 ```
 
-After recovery, rerun `gh release view v0.1.3 --repo mannyc2/nyc-transit-kit`.
+After recovery, rerun `gh release view v0.1.4 --repo mannyc2/nyc-transit-kit`.
 The next `Release` workflow run should then stop at the remote-state check
 instead of attempting another publish.

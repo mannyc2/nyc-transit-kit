@@ -11,6 +11,8 @@ export {
   MtaDecodeError,
   MtaHttpError,
   MtaInvalidInputError,
+  MtaRetryExhaustedError,
+  MtaTimeoutError,
   ProviderContractError,
   ProviderHttpError,
   RetryExhaustedError,
@@ -35,7 +37,10 @@ export {
 } from "./nyc-open-data"
 export type { Soda3CompatOptions } from "./soda3"
 export {
+  countSoda3Rows,
   exportSoda3Response,
+  fetchSoda3DatasetMetadata,
+  queryAllSoda3Rows,
   querySoda3Rows,
   searchSoda3Catalog
 } from "./soda3"

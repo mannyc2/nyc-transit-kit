@@ -6,16 +6,18 @@ import {
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
-import * as HttpClient from "effect/unstable/http/HttpClient"
-import type * as HttpClientError from "effect/unstable/http/HttpClientError"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 import { MtaHttpError, MtaInvalidInputError } from "./errors"
+import {
+  executeMtaRequest,
+  httpStatusText,
+  requestWithPolicy,
+  retryableStatusError
+} from "./internal/policy"
 
+export { MtaHttpLive, mtaFetchLayer } from "./client"
 export type { MtaGtfsStaticFetchRequestInput }
-
-export const MtaHttpLive = FetchHttpClient.layer
 
 const decodeStaticFetchRequest = (input: unknown) =>
   Schema.decodeUnknownEffect(MtaGtfsStaticFetchRequest)(input).pipe(
@@ -29,26 +31,6 @@ const decodeStaticFetchRequest = (input: unknown) =>
     )
   )
 
-const httpStatusText = (status: number) => `HTTP ${status}`
-
-const mapMtaHttpClientError = (operation: string, error: HttpClientError.HttpClientError) => {
-  const response = error.response
-
-  if (response !== undefined) {
-    return MtaHttpError.make({
-      operation,
-      status: response.status,
-      statusText: httpStatusText(response.status)
-    })
-  }
-
-  return MtaHttpError.make({
-    operation,
-    status: 0,
-    statusText: error.message
-  })
-}
-
 const toWebResponse = (response: HttpClientResponse.HttpClientResponse) =>
   Effect.map(
     Stream.toReadableStreamEffect(response.stream),
@@ -61,15 +43,23 @@ const toWebResponse = (response: HttpClientResponse.HttpClientResponse) =>
 
 const responseContentLength = (response: HttpClientResponse.HttpClientResponse) => {
   const value = response.headers["content-length"]
-  return value === undefined ? undefined : Number(value)
+  if (value === undefined) {
+    return undefined
+  }
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined
 }
 
 export const probeGtfsStatic = Effect.fn("Mta.probeGtfsStatic")(function* (
   input: MtaGtfsStaticFetchRequestInput
 ) {
   const request = yield* decodeStaticFetchRequest(input)
-  const response = yield* HttpClient.execute(HttpClientRequest.head(request.url)).pipe(
-    Effect.mapError((error) => mapMtaHttpClientError("gtfs-static", error))
+  const response = yield* requestWithPolicy(
+    "gtfs-static",
+    executeMtaRequest("gtfs-static", HttpClientRequest.head(request.url)),
+    {
+      retryableResult: (response) => retryableStatusError("gtfs-static", response.status)
+    }
   )
   const contentType = response.headers["content-type"]
   const contentLength = responseContentLength(response)
@@ -87,8 +77,12 @@ export const fetchGtfsStaticResponse = Effect.fn("Mta.fetchGtfsStaticResponse")(
   input: MtaGtfsStaticFetchRequestInput
 ) {
   const request = yield* decodeStaticFetchRequest(input)
-  const response = yield* HttpClient.execute(HttpClientRequest.get(request.url)).pipe(
-    Effect.mapError((error) => mapMtaHttpClientError("gtfs-static", error))
+  const response = yield* requestWithPolicy(
+    "gtfs-static",
+    executeMtaRequest("gtfs-static", HttpClientRequest.get(request.url)),
+    {
+      retryableResult: (response) => retryableStatusError("gtfs-static", response.status)
+    }
   )
 
   if (response.status < 200 || response.status >= 300) {

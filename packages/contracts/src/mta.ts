@@ -99,7 +99,7 @@ export class MtaGtfsRealtimeDecodedHeader extends Schema.Class<MtaGtfsRealtimeDe
 export class MtaGtfsRealtimeDecodedSummary extends Schema.Class<MtaGtfsRealtimeDecodedSummary>(
   "MtaGtfsRealtimeDecodedSummary"
 )({
-  feed: GtfsFeedKind,
+  feed: Schema.optionalKey(GtfsFeedKind),
   entityCount: NonNegativeInteger,
   tripUpdateCount: NonNegativeInteger,
   vehiclePositionCount: NonNegativeInteger,

@@ -6,11 +6,17 @@ import { Soda3HttpLive } from "./http"
 export interface Soda3ClientConfigShape {
   readonly appToken?: string
   readonly retryTimes?: number
+  readonly retryDelayMs?: number
   readonly timeoutMs?: number
 }
 
+export type FetchImplementation = (
+  input: string | URL | globalThis.Request,
+  init?: globalThis.RequestInit
+) => Promise<globalThis.Response>
+
 export interface Soda3LayerOptions extends Soda3ClientConfigShape {
-  readonly fetch?: typeof fetch
+  readonly fetch?: FetchImplementation
 }
 
 export class Soda3ClientConfig extends Context.Service<Soda3ClientConfig, Soda3ClientConfigShape>()(
@@ -25,14 +31,15 @@ export const soda3ConfigLayer = (options: Soda3ClientConfigShape = {}) =>
   Layer.succeed(Soda3ClientConfig)({
     retryTimes: options.retryTimes ?? 0,
     ...(options.appToken === undefined ? {} : { appToken: options.appToken }),
+    ...(options.retryDelayMs === undefined ? {} : { retryDelayMs: options.retryDelayMs }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs })
   })
 
-export const soda3FetchLayer = (fetchImplementation?: typeof fetch) =>
+export const soda3FetchLayer = (fetchImplementation?: FetchImplementation) =>
   fetchImplementation === undefined
     ? Soda3HttpLive
     : FetchHttpClient.layer.pipe(
-        Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetchImplementation))
+        Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetchImplementation as typeof fetch))
       )
 
 export const soda3Layer = (options: Soda3LayerOptions = {}) =>

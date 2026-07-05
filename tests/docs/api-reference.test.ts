@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { mkdtemp, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 const rootPath = new URL("../../", import.meta.url).pathname
 const packageRoot = join(rootPath, "packages")
@@ -11,6 +11,8 @@ const providerCoveragePath = join(rootPath, "docs", "provider-coverage.md")
 const readmePath = join(rootPath, "README.md")
 const cliRuntimePath = join(rootPath, "packages", "cli", "src", "runtime.ts")
 const tsconfigBasePath = join(rootPath, "tsconfig.base.json")
+const effectPackageJsonPath = Bun.resolveSync("effect/package.json", rootPath)
+const effectDistPath = join(dirname(effectPackageJsonPath), "dist")
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
@@ -114,10 +116,8 @@ const typecheckTypeScriptFences = async (fences: ReadonlyArray<NamedTypeScriptFe
             baseUrl: rootPath,
             paths: {
               ...paths,
-              effect: [
-                "node_modules/.bun/effect@4.0.0-beta.83/node_modules/effect/dist/index.d.ts"
-              ],
-              "effect/*": ["node_modules/.bun/effect@4.0.0-beta.83/node_modules/effect/dist/*.d.ts"]
+              effect: [join(effectDistPath, "index.d.ts")],
+              "effect/*": [join(effectDistPath, "*.d.ts")]
             },
             typeRoots: [join(rootPath, "node_modules", "@types")]
           },

@@ -18,4 +18,6 @@ export const toExportBody = (request: Soda3ExportRequest) => ({
 })
 
 export const rangeHeader = (request: Soda3ExportRequest) =>
-  request.range === undefined ? undefined : `bytes=${request.range.start}-${request.range.end}`
+  request.range === undefined
+    ? undefined
+    : `bytes=${request.range.start}-${request.range.end ?? ""}`

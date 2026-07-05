@@ -17,13 +17,39 @@ from Bun or from a TypeScript toolchain that can compile TypeScript in
 dependencies.
 
 ```sh
-bun add effect @nyc-transit-kit/soda3
+bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.1.4
 bun add @nyc-transit-kit/mta @nyc-transit-kit/nyc-dot
 bun add @nyc-transit-kit/compat
 ```
 
 Install only the provider packages your app needs. For CLI use, install
 `@nyc-transit-kit/cli` or run the repo binary during development.
+
+## Compatibility
+
+Each `nyc-transit-kit` release pins one exact Effect 4 beta. Pin your
+application's `effect` package to the same version or the lockfile can install
+two Effect copies with incompatible types.
+
+| nyc-transit-kit | effect | @effect/platform-bun |
+| --- | --- | --- |
+| 0.1.0 / 0.1.1 | 4.0.0-beta.83 | 4.0.0-beta.83 |
+| 0.1.2 / 0.1.3 / 0.1.4 | 4.0.0-beta.92 | 4.0.0-beta.92 |
+
+```sh
+bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.1.4
+```
+
+The tested downstream TypeScript envelope is TS 6.x with `strict`,
+`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
+`noPropertyAccessFromIndexSignature`, `verbatimModuleSyntax`,
+`module: Preserve`, `moduleResolution: Bundler`, and
+`allowImportingTsExtensions`; see
+[`tests/downstream-strict/tsconfig.json`](../tests/downstream-strict/tsconfig.json).
+
+`effect` is currently an exact regular dependency, not a peer dependency. A
+version mismatch surfaces as a duplicate install rather than an install-time
+conflict.
 
 ## Effect-Native Query
 
@@ -87,13 +113,16 @@ callers need to narrow failures.
 
 ## CLI
 
-Every CLI command supports `--json`, and dry-run commands avoid live provider
-calls.
+The published CLI requires Bun at runtime because its npm bin is a Bun-shebang
+wrapper. Install it with Bun and run it through `bunx`. Every command supports
+`--help`; `--json` is the stable machine-readable contract, and dry-run commands
+avoid live provider calls.
 
 ```sh
-ntk --version --json
-ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json --dry-run
-ntk mta gtfs-rt probe --feed alerts-all --json --dry-run
+bun add -d @nyc-transit-kit/cli
+bunx ntk --version --json
+bunx ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json --dry-run
+bunx ntk mta gtfs-rt probe --feed alerts-all --json --dry-run
 ```
 
 ## Tokens
@@ -103,7 +132,7 @@ environment variables; pass app tokens through explicit config such as
 `Soda3ClientConfig` or Promise compat options.
 
 ```sh
-SOCRATA_APP_TOKEN=<token> ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json
+SOCRATA_APP_TOKEN=<token> bunx ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json
 ```
 
 ## Boundaries

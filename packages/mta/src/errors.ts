@@ -19,9 +19,30 @@ export class MtaInvalidInputError extends Schema.TaggedErrorClass<MtaInvalidInpu
   }
 ) {}
 
-export type MtaError = MtaHttpError | MtaDecodeError | MtaInvalidInputError
+export class MtaTimeoutError extends Schema.TaggedErrorClass<MtaTimeoutError>()("MtaTimeoutError", {
+  operation: Schema.String,
+  timeoutMs: Schema.Number
+}) {}
+
+export class MtaRetryExhaustedError extends Schema.TaggedErrorClass<MtaRetryExhaustedError>()(
+  "MtaRetryExhaustedError",
+  {
+    operation: Schema.String,
+    attempts: Schema.Number,
+    message: Schema.String
+  }
+) {}
+
+export type MtaError =
+  | MtaHttpError
+  | MtaDecodeError
+  | MtaInvalidInputError
+  | MtaTimeoutError
+  | MtaRetryExhaustedError
 
 export const isMtaError = (value: unknown): value is MtaError =>
   value instanceof MtaHttpError ||
   value instanceof MtaDecodeError ||
-  value instanceof MtaInvalidInputError
+  value instanceof MtaInvalidInputError ||
+  value instanceof MtaTimeoutError ||
+  value instanceof MtaRetryExhaustedError

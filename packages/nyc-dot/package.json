@@ -1,6 +1,7 @@
 {
   "name": "@nyc-transit-kit/nyc-dot",
-  "version": "0.1.3",
+  "version": "0.1.4",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -14,6 +15,7 @@
   },
   "types": "./src/index.ts",
   "files": [
+    "README.md",
     "src"
   ],
   "scripts": {
@@ -21,8 +23,8 @@
     "test": "bun test ./test"
   },
   "dependencies": {
-    "@nyc-transit-kit/contracts": "0.1.3",
-    "@nyc-transit-kit/soda3": "0.1.3",
+    "@nyc-transit-kit/contracts": "0.1.4",
+    "@nyc-transit-kit/soda3": "0.1.4",
     "effect": "catalog:"
   },
   "publishConfig": {

@@ -1,6 +1,15 @@
 export const packageName = "@nyc-transit-kit/mta"
 export const gtfsStaticSurface = "gtfs-static"
 export const gtfsRealtimeSurface = "gtfs-realtime"
+export type { MtaClientConfigShape, MtaLayerOptions } from "./client"
+export {
+  MtaClientConfig,
+  MtaHttpLive,
+  MtaLive,
+  mtaConfigLayer,
+  mtaFetchLayer,
+  mtaLayer
+} from "./client"
 export {
   findMtaOpenDataDataset,
   mtaOpenDataCatalogDescriptor,
@@ -9,7 +18,14 @@ export {
 } from "./datasets"
 export { decodeMtaElevatorEscalatorCurrent } from "./elevator-escalator"
 export type { MtaError } from "./errors"
-export { isMtaError, MtaDecodeError, MtaHttpError, MtaInvalidInputError } from "./errors"
+export {
+  isMtaError,
+  MtaDecodeError,
+  MtaHttpError,
+  MtaInvalidInputError,
+  MtaRetryExhaustedError,
+  MtaTimeoutError
+} from "./errors"
 export type {
   MtaDirectFeedDescriptor,
   MtaDirectFeedSurface,
@@ -34,13 +50,13 @@ export type {
 export {
   captureGtfsRealtime,
   decodeGtfsRealtimeBytes,
+  decodeGtfsRealtimeBytesSync,
   GtfsRealtimeDecoder,
   probeGtfsRealtime
 } from "./gtfs-realtime"
 export {
   fetchGtfsStatic,
   fetchGtfsStaticResponse,
-  MtaHttpLive,
   probeGtfsStatic
 } from "./gtfs-static"
 export type { MtaJsonDirectFetchRequestInput } from "./json-direct"

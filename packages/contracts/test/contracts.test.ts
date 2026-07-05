@@ -41,7 +41,7 @@ import {
 describe("@nyc-transit-kit/contracts", () => {
   test("exposes initial schema contracts", () => {
     expect(packageName).toBe("@nyc-transit-kit/contracts")
-    expect(releaseVersion).toBe("0.1.3")
+    expect(releaseVersion).toBe("0.1.4")
     expect(schemaVersion).toBe("0.1.0")
     expect(ApiFamily).toBeDefined()
     expect(Soda3Operation).toBeDefined()
@@ -166,9 +166,32 @@ describe("@nyc-transit-kit/contracts", () => {
         }
       })
     )
+    const openEndedExportRequest = await Effect.runPromise(
+      Schema.decodeUnknownEffect(Soda3ExportRequest)({
+        domain: "data.cityofnewyork.us",
+        datasetId: "abcd-1234",
+        format: "csv",
+        range: {
+          start: 100
+        }
+      })
+    )
+    const zeroLengthExportRequest = await Effect.runPromise(
+      Schema.decodeUnknownEffect(Soda3ExportRequest)({
+        domain: "data.cityofnewyork.us",
+        datasetId: "abcd-1234",
+        format: "csv",
+        range: {
+          start: 0,
+          end: 0
+        }
+      })
+    )
 
     expect(query.query).toBe("SELECT *")
     expect(exportRequest.format).toBe("csv")
+    expect(openEndedExportRequest.range?.end).toBeUndefined()
+    expect(zeroLengthExportRequest.range?.end).toBe(0)
   })
 
   test("rejects invalid SODA3 request contracts", () => {
@@ -185,6 +208,18 @@ describe("@nyc-transit-kit/contracts", () => {
         domain: "data.cityofnewyork.us",
         datasetId: "abcd-1234",
         format: "xml"
+      })
+    ).toBe(false)
+
+    expect(
+      Schema.is(Soda3ExportRequest)({
+        domain: "data.cityofnewyork.us",
+        datasetId: "abcd-1234",
+        format: "csv",
+        range: {
+          start: 100,
+          end: 50
+        }
       })
     ).toBe(false)
   })
@@ -208,17 +243,34 @@ describe("@nyc-transit-kit/contracts", () => {
             resource: {
               id: "abcd-1234",
               name: "Synthetic Transit Stations",
-              domain: "data.cityofnewyork.us",
-              type: "dataset"
-            }
+              type: "dataset",
+              columns_name: ["Station"],
+              columns_field_name: ["station"]
+            },
+            classification: {
+              domain_metadata: [
+                {
+                  key: "Update_Update-Frequency",
+                  value: "Monthly"
+                }
+              ]
+            },
+            metadata: {
+              domain: "data.cityofnewyork.us"
+            },
+            permalink: "https://data.cityofnewyork.us/d/abcd-1234"
           }
         ],
-        resultCount: 1
+        resultSetSize: 1,
+        warnings: []
       })
     )
 
     expect(queryResponse.rowCount).toBe(1)
+    expect(catalogResponse.resultSetSize).toBe(1)
     expect(String(catalogResponse.results[0]?.resource.id)).toBe("abcd-1234")
+    expect(catalogResponse.results[0]?.resource.columns_field_name).toEqual(["station"])
+    expect(catalogResponse.results[0]?.classification?.domain_metadata?.[0]?.value).toBe("Monthly")
   })
 
   test("validates CLI success and error envelopes", async () => {

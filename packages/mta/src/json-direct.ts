@@ -5,10 +5,14 @@ import {
 } from "@nyc-transit-kit/contracts/mta"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import * as HttpClient from "effect/unstable/http/HttpClient"
-import type * as HttpClientError from "effect/unstable/http/HttpClientError"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import { MtaHttpError, MtaInvalidInputError } from "./errors"
+import {
+  executeMtaRequest,
+  httpStatusText,
+  requestWithPolicy,
+  retryableStatusError
+} from "./internal/policy"
 
 export type { MtaJsonDirectFetchRequestInput }
 
@@ -27,26 +31,7 @@ const decodeJsonDirectFetchRequest = (input: unknown) =>
     )
   )
 
-const httpStatusText = (status: number) => `HTTP ${status}`
 const isOkStatus = (status: number) => status >= 200 && status < 300
-
-const mapMtaHttpClientError = (operation: string, error: HttpClientError.HttpClientError) => {
-  const response = error.response
-
-  if (response !== undefined) {
-    return MtaHttpError.make({
-      operation,
-      status: response.status,
-      statusText: httpStatusText(response.status)
-    })
-  }
-
-  return MtaHttpError.make({
-    operation,
-    status: 0,
-    statusText: error.message
-  })
-}
 
 const shouldRedactSearchParameter = (name: string) => {
   const lower = name.toLowerCase()
@@ -101,11 +86,18 @@ export const fetchMtaJsonDirect = Effect.fn("Mta.fetchMtaJsonDirect")(function* 
 ) {
   const request = yield* decodeJsonDirectFetchRequest(input)
   const url = yield* jsonDirectUrl(request)
-  const response = yield* HttpClient.execute(
-    HttpClientRequest.get(url, {
-      acceptJson: true
-    })
-  ).pipe(Effect.mapError((error) => mapMtaHttpClientError(jsonDirectOperation, error)))
+  const response = yield* requestWithPolicy(
+    jsonDirectOperation,
+    executeMtaRequest(
+      jsonDirectOperation,
+      HttpClientRequest.get(url, {
+        acceptJson: true
+      })
+    ),
+    {
+      retryableResult: (response) => retryableStatusError(jsonDirectOperation, response.status)
+    }
+  )
 
   if (!isOkStatus(response.status)) {
     return yield* MtaHttpError.make({

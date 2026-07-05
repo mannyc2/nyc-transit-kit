@@ -1,6 +1,6 @@
 # Official API Map
 
-Last verified: 2026-06-29.
+Last verified: 2026-07-04.
 
 This file records the provider surfaces the v0 toolkit is allowed to model.
 
@@ -20,7 +20,23 @@ snapshots, not hand-maintained in this document.
   - Socrata recommends POST for queries because it supports longer queries and
     clearer options.
   - Socrata's Discovery API is the catalog surface for searching assets.
+  - Verified on 2026-07-04: SODA3 data endpoints are
+    `/api/v3/views/<dataset>/query.json` and
+    `/api/v3/views/<dataset>/export.<format>`.
+  - Verified on 2026-07-04: no official `/api/v3/views/<dataset>` metadata or
+    columns endpoint is documented or available in the live check.
+  - Verified on 2026-07-04: dataset discovery metadata is available through
+    the Discovery API; use `/api/catalog/v1` with `domains`, `search_context`,
+    `only=dataset`, and `ids` for exact dataset lookup.
+  - Verified on 2026-07-04: Discovery search responses use the top-level
+    result-set-size field for catalog counts.
+  - Verified on 2026-07-04: dataset domains arrive under `metadata.domain`;
+    the sample result did not include a domain field inside `resource`.
+  - Verified on 2026-07-04: Discovery `resource` records include generic
+    dataset metadata such as `columns_name`, `columns_field_name`,
+    `columns_datatype`, timestamps, attribution, and publication date.
 - Sources:
+  - https://dev.socrata.com/docs/endpoints
   - https://dev.socrata.com/docs/queries/
   - https://dev.socrata.com/docs/other/discovery
 

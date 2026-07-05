@@ -17,6 +17,7 @@ import * as contractsRelease from "@nyc-transit-kit/contracts/release"
 import * as contractsSoda3 from "@nyc-transit-kit/contracts/soda3"
 import * as fixtures from "@nyc-transit-kit/fixtures"
 import * as mta from "@nyc-transit-kit/mta"
+import * as mtaClient from "@nyc-transit-kit/mta/client"
 import * as mtaDatasets from "@nyc-transit-kit/mta/datasets"
 import * as mtaElevatorEscalator from "@nyc-transit-kit/mta/elevator-escalator"
 import * as mtaErrors from "@nyc-transit-kit/mta/errors"
@@ -45,6 +46,7 @@ import * as soda3Client from "@nyc-transit-kit/soda3/client"
 import * as soda3Endpoints from "@nyc-transit-kit/soda3/endpoints"
 import * as soda3Errors from "@nyc-transit-kit/soda3/errors"
 import * as soda3Export from "@nyc-transit-kit/soda3/export"
+import * as soda3Metadata from "@nyc-transit-kit/soda3/metadata"
 import * as soda3Query from "@nyc-transit-kit/soda3/query"
 import * as soda3Soql from "@nyc-transit-kit/soda3/soql"
 
@@ -68,6 +70,7 @@ export const publishedPackageEntrypoints = [
   contractsSoda3,
   fixtures,
   mta,
+  mtaClient,
   mtaDatasets,
   mtaElevatorEscalator,
   mtaErrors,
@@ -96,6 +99,7 @@ export const publishedPackageEntrypoints = [
   soda3Endpoints,
   soda3Errors,
   soda3Export,
+  soda3Metadata,
   soda3Query,
   soda3Soql
 ] as const

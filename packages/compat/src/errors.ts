@@ -10,7 +10,9 @@ export {
   isMtaError,
   MtaDecodeError,
   MtaHttpError,
-  MtaInvalidInputError
+  MtaInvalidInputError,
+  MtaRetryExhaustedError,
+  MtaTimeoutError
 } from "@nyc-transit-kit/mta/errors"
 export { isUnsupportedDatasetError, UnsupportedDatasetError } from "@nyc-transit-kit/nyc-dot/errors"
 export type { Soda3ClientError } from "@nyc-transit-kit/soda3/errors"

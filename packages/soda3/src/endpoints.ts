@@ -83,6 +83,18 @@ export const buildCatalogSearchUrl = Effect.fn("Soda3.buildCatalogSearchUrl")(fu
   if (request.query !== undefined) {
     url.searchParams.set("search", request.query)
   }
+  for (const id of request.ids ?? []) {
+    url.searchParams.append("ids", id)
+  }
+  for (const category of request.categories ?? []) {
+    url.searchParams.append("categories", category)
+  }
+  for (const tag of request.tags ?? []) {
+    url.searchParams.append("tags", tag)
+  }
+  if (request.order !== undefined) {
+    url.searchParams.set("order", request.order)
+  }
   if (request.limit !== undefined) {
     url.searchParams.set("limit", request.limit.toString())
   }

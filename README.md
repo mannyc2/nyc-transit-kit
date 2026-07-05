@@ -20,21 +20,27 @@ The repository is organized by official API/provider family:
 Start with [Getting started](docs/getting-started.md), then use the
 [API reference](docs/api-reference.md) for the full export map. The v0 packages
 publish TypeScript source and are best consumed from Bun or a TypeScript
-toolchain that can compile dependencies.
+toolchain that can compile dependencies. Each release pins one exact Effect 4
+beta; see the [compatibility matrix](docs/getting-started.md#compatibility)
+before installing into an existing Effect app.
 
 ```sh
-bun add effect @nyc-transit-kit/soda3
+bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.1.4
 bun add @nyc-transit-kit/mta @nyc-transit-kit/nyc-dot @nyc-transit-kit/compat
 ```
 
 ## CLI
 
-Every command supports `--json`; dry-run commands avoid live provider calls.
+The published CLI requires Bun at runtime because its npm bin is a Bun-shebang
+wrapper. Install it with Bun and run it through `bunx`. Every command supports
+`--help`; `--json` is the stable machine-readable contract, and dry-run
+commands avoid live provider calls.
 
 ```sh
-ntk --version --json
-ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json --dry-run
-ntk mta gtfs-rt probe --feed alerts-all --json --dry-run
+bun add -d @nyc-transit-kit/cli
+bunx ntk --version --json
+bunx ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json --dry-run
+bunx ntk mta gtfs-rt probe --feed alerts-all --json --dry-run
 ```
 
 Socrata-backed datasets are SODA3-only. Do not add SODA2 endpoint builders,
@@ -77,7 +83,7 @@ requests. Core packages still receive explicit config through arguments,
 services, and layers; they do not read environment variables.
 
 ```sh
-SOCRATA_APP_TOKEN=<token> bun run cli socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json
+SOCRATA_APP_TOKEN=<token> bunx ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json
 ```
 
 ## Development

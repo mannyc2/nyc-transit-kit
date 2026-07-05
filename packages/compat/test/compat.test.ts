@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test"
+import type { FetchImplementation } from "@nyc-transit-kit/soda3/client"
 import {
   captureMtaGtfsRealtime,
+  countSoda3Rows,
   exportNycDotResponse,
   exportNycOpenDataResponse,
   facadeStyle,
   fetchMtaGtfsStaticBytes,
   fetchMtaGtfsStaticResponse,
   fetchMtaJsonDirect,
+  fetchSoda3DatasetMetadata,
   isSoda3ClientError,
   isTransitKitCompatError,
   isUnsupportedDatasetError,
@@ -14,6 +17,7 @@ import {
   packageName,
   probeMtaGtfsRealtime,
   probeMtaGtfsStatic,
+  queryAllSoda3Rows,
   queryMtaOpenDataRows,
   queryNycDotRows,
   queryNycOpenDataRows,
@@ -23,14 +27,10 @@ import {
   UnsupportedDatasetError
 } from "../src/index"
 
-type FetchInput = Parameters<typeof fetch>[0]
-type FetchInit = Parameters<typeof fetch>[1]
-type FetchHandler = (input: FetchInput, init?: FetchInit) => ReturnType<typeof fetch>
+type FetchHandler = FetchImplementation
 
-const makeFetch = (handler: FetchHandler): typeof fetch =>
-  Object.assign(handler, {
-    preconnect: fetch.preconnect
-  })
+const makeFetch = (handler: FetchHandler): FetchImplementation => handler
+const streetColumn = "street"
 
 const syntheticGtfsRealtimeBytes = () =>
   new Uint8Array([
@@ -70,6 +70,98 @@ describe("@nyc-transit-kit/compat", () => {
     )
 
     expect(rows.rows).toHaveLength(1)
+  })
+
+  test("wraps SODA3 auto-pagination and count helpers with promises", async () => {
+    const pageRequests: Array<Request> = []
+    const rows = await queryAllSoda3Rows(
+      {
+        domain: "data.cityofnewyork.us",
+        datasetId: "ycrg-ses3",
+        query: "SELECT street ORDER BY street",
+        pageSize: 2
+      },
+      {
+        fetch: makeFetch(async (input, init) => {
+          const request = input instanceof Request ? input : new Request(input.toString(), init)
+          pageRequests.push(request)
+          return Response.json({
+            rows:
+              pageRequests.length === 1
+                ? [
+                    {
+                      street: "Canal St"
+                    },
+                    {
+                      street: "Spring St"
+                    }
+                  ]
+                : [
+                    {
+                      street: "Prince St"
+                    }
+                  ]
+          })
+        })
+      }
+    )
+    const count = await countSoda3Rows(
+      {
+        domain: "data.cityofnewyork.us",
+        datasetId: "ycrg-ses3",
+        where: "borough = :borough",
+        parameters: {
+          borough: "Manhattan"
+        }
+      },
+      {
+        fetch: makeFetch(async () =>
+          Response.json({
+            rows: [
+              {
+                count: "3"
+              }
+            ]
+          })
+        )
+      }
+    )
+
+    expect(rows.map((row) => row[streetColumn])).toEqual(["Canal St", "Spring St", "Prince St"])
+    expect(pageRequests).toHaveLength(2)
+    expect(count).toBe(3)
+  })
+
+  test("wraps SODA3 dataset metadata lookup with promises", async () => {
+    const metadata = await fetchSoda3DatasetMetadata(
+      {
+        domain: "data.cityofnewyork.us",
+        datasetId: "ycrg-ses3"
+      },
+      {
+        fetch: makeFetch(async () =>
+          Response.json({
+            results: [
+              {
+                resource: {
+                  id: "ycrg-ses3",
+                  name: "Bus Lanes - Local Streets",
+                  columns_name: ["Street"],
+                  columns_field_name: ["street"]
+                },
+                metadata: {
+                  domain: "data.cityofnewyork.us"
+                }
+              }
+            ],
+            resultSetSize: 1
+          })
+        )
+      }
+    )
+
+    expect(String(metadata.resource.id)).toBe("ycrg-ses3")
+    expect(metadata.resource.columns_field_name).toEqual(["street"])
   })
 
   test("wraps SODA3 timeout config with promises", async () => {
@@ -207,6 +299,32 @@ describe("@nyc-transit-kit/compat", () => {
     expect(result.url).toContain("token=REDACTED")
   })
 
+  test("wraps MTA retry options with promises", async () => {
+    let attempts = 0
+    const result = await fetchMtaJsonDirect(
+      {
+        surface: "bus-time",
+        url: "https://bustime.mta.info/api/siri/vehicle-monitoring.json"
+      },
+      {
+        retryTimes: 1,
+        fetch: makeFetch(async () => {
+          attempts += 1
+          return attempts === 1
+            ? new Response("temporary", { status: 503 })
+            : Response.json({
+                Siri: {
+                  ServiceDelivery: {}
+                }
+              })
+        })
+      }
+    )
+
+    expect(attempts).toBe(2)
+    expect(result.status).toBe(200)
+  })
+
   test("wraps NYC DOT delegation with promises", async () => {
     const requests: Array<Request> = []
     const rows = await queryNycDotRows(
@@ -307,12 +425,16 @@ describe("@nyc-transit-kit/compat", () => {
                 resource: {
                   id: "ycrg-ses3",
                   name: "Bus Lanes",
-                  domain: "data.cityofnewyork.us",
-                  type: "dataset"
+                  type: "dataset",
+                  columns_name: ["Street"],
+                  columns_field_name: ["street"]
+                },
+                metadata: {
+                  domain: "data.cityofnewyork.us"
                 }
               }
             ],
-            resultCount: 1
+            resultSetSize: 1
           })
         })
       }
@@ -332,7 +454,7 @@ describe("@nyc-transit-kit/compat", () => {
     )
 
     expect(rows.rows).toHaveLength(1)
-    expect(search.resultCount).toBe(1)
+    expect(search.resultSetSize).toBe(1)
     expect(new URL(requests[1]?.url ?? "https://example.test").searchParams.get("offset")).toBe("2")
     expect(response.status).toBe(200)
     expect(await response.text()).toContain("Main St")

@@ -5,14 +5,15 @@ import {
   type MtaGtfsStaticFetchRequestInput,
   type MtaJsonDirectFetchRequestInput
 } from "@nyc-transit-kit/contracts/mta"
+import type { FetchImplementation } from "@nyc-transit-kit/soda3/client"
 import { Soda3ClientConfig } from "@nyc-transit-kit/soda3/client"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 import * as GtfsRealtimeBindings from "gtfs-realtime-bindings"
 import {
   captureGtfsRealtime,
   decodeGtfsRealtimeBytes,
+  decodeGtfsRealtimeBytesSync,
   decodeMtaElevatorEscalatorCurrent,
   decodeMtaOpenDataCatalogRow,
   fetchGtfsStatic,
@@ -25,9 +26,15 @@ import {
   GtfsRealtimeDecoder,
   gtfsRealtimeSurface,
   gtfsStaticSurface,
+  isMtaError,
   MtaDecodeError,
+  MtaHttpError,
   MtaInvalidInputError,
+  MtaRetryExhaustedError,
+  MtaTimeoutError,
+  mtaConfigLayer,
   mtaDirectFeeds,
+  mtaFetchLayer,
   mtaGtfsRealtimeFeeds,
   mtaGtfsStaticFeeds,
   mtaOpenDataCatalogDescriptor,
@@ -115,21 +122,23 @@ const elevatorEscalatorCurrentFixture = [
   }
 ]
 
-type FetchInput = Parameters<typeof fetch>[0]
-type FetchInit = Parameters<typeof fetch>[1]
-type FetchHandler = (input: FetchInput, init?: FetchInit) => ReturnType<typeof fetch>
-
-const makeFetch = (handler: FetchHandler): typeof fetch =>
-  Object.assign(handler, {
-    preconnect: fetch.preconnect
-  })
+type FetchInput = Parameters<FetchImplementation>[0]
+type FetchInit = Parameters<FetchImplementation>[1]
+type FetchHandler = FetchImplementation
 
 const requestFromFetchInput = (input: FetchInput, init?: FetchInit) =>
   input instanceof Request ? input : new Request(input.toString(), init)
 
-const fetchLayer = (handler: FetchHandler) =>
-  FetchHttpClient.layer.pipe(
-    Layer.provide(Layer.succeed(FetchHttpClient.Fetch, makeFetch(handler)))
+const fetchLayer = (handler: FetchHandler) => mtaFetchLayer(handler)
+
+const failureOf = <A, E>(effect: Effect.Effect<A, E>) =>
+  Effect.runPromise(
+    effect.pipe(
+      Effect.match({
+        onFailure: (failure) => failure,
+        onSuccess: () => undefined
+      })
+    )
   )
 
 describe("@nyc-transit-kit/mta", () => {
@@ -205,6 +214,26 @@ describe("@nyc-transit-kit/mta", () => {
     expect(response.status).toBe(200)
     expect(await response.text()).toBe("zip-bytes")
     expect(requests.map((request) => request.method)).toEqual(["HEAD", "GET", "GET"])
+  })
+
+  test("omits malformed GTFS static content lengths", async () => {
+    const layer = fetchLayer(
+      async () =>
+        new Response("zip-bytes", {
+          status: 200,
+          headers: {
+            "content-length": "banana",
+            "content-type": "application/zip"
+          }
+        })
+    )
+
+    const probe = await Effect.runPromise(
+      probeGtfsStatic(gtfsStaticFixture).pipe(Effect.provide(layer))
+    )
+
+    expect(probe.contentType).toBe("application/zip")
+    expect("contentLength" in probe).toBe(false)
   })
 
   test("probes GTFS realtime with decoder injection", async () => {
@@ -339,6 +368,99 @@ describe("@nyc-transit-kit/mta", () => {
     expect(result.url).not.toContain("existing-secret")
   })
 
+  test("retries MTA JSON direct feeds before succeeding", async () => {
+    let attempts = 0
+    const httpLayer = fetchLayer(async () => {
+      attempts += 1
+      return attempts === 1
+        ? new Response("temporary", { status: 503 })
+        : Response.json(
+            {
+              Siri: {
+                ServiceDelivery: {}
+              }
+            },
+            {
+              status: 200
+            }
+          )
+    })
+
+    const result = await Effect.runPromise(
+      fetchMtaJsonDirect(jsonDirectFixture).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            httpLayer,
+            mtaConfigLayer({
+              retryTimes: 1,
+              retryDelayMs: 0
+            })
+          )
+        )
+      )
+    )
+
+    expect(attempts).toBe(2)
+    expect(result.status).toBe(200)
+  })
+
+  test("returns MTA retry exhaustion when retryable failures continue", async () => {
+    const error = await failureOf(
+      fetchMtaJsonDirect(jsonDirectFixture).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            fetchLayer(async () => new Response("temporary", { status: 503 })),
+            mtaConfigLayer({
+              retryTimes: 1,
+              retryDelayMs: 0
+            })
+          )
+        )
+      )
+    )
+
+    expect(error).toBeInstanceOf(MtaRetryExhaustedError)
+  })
+
+  test("applies MTA timeout config across the request", async () => {
+    const error = await failureOf(
+      fetchMtaJsonDirect(jsonDirectFixture).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            fetchLayer(
+              () =>
+                new Promise<Response>((resolve) => {
+                  setTimeout(() => resolve(Response.json({})), 100)
+                })
+            ),
+            mtaConfigLayer({
+              timeoutMs: 20
+            })
+          )
+        )
+      )
+    )
+
+    expect(error).toBeInstanceOf(MtaTimeoutError)
+  })
+
+  test("keeps MTA policy optional when no config layer is provided", async () => {
+    let attempts = 0
+    const error = await failureOf(
+      fetchMtaJsonDirect(jsonDirectFixture).pipe(
+        Effect.provide(
+          fetchLayer(async () => {
+            attempts += 1
+            return attempts === 1 ? new Response("temporary", { status: 503 }) : Response.json({})
+          })
+        )
+      )
+    )
+
+    expect(attempts).toBe(1)
+    expect(error).toBeInstanceOf(MtaHttpError)
+  })
+
   test("maps invalid MTA JSON direct inputs to typed MTA errors", async () => {
     const error = await Effect.runPromise(
       fetchMtaJsonDirect({
@@ -367,6 +489,36 @@ describe("@nyc-transit-kit/mta", () => {
     expect(result.alertCount).toBe(1)
     expect(result.header?.gtfsRealtimeVersion).toBe("2.0")
     expect(result.header?.timestamp).toBe(123)
+  })
+
+  test("decodes GTFS realtime bytes without a feed label", async () => {
+    const result = await Effect.runPromise(decodeGtfsRealtimeBytes(syntheticGtfsRealtimeBytes()))
+
+    expect(result.feed).toBeUndefined()
+    expect(result.entityCount).toBe(3)
+    expect(result.vehiclePositionCount).toBe(1)
+  })
+
+  test("decodes GTFS realtime bytes synchronously", () => {
+    const result = decodeGtfsRealtimeBytesSync(syntheticGtfsRealtimeBytes(), "alerts")
+
+    expect(result.feed).toBe("alerts")
+    expect(result.entityCount).toBe(3)
+    expect(result.alertCount).toBe(1)
+  })
+
+  test("throws typed decode errors from the sync GTFS realtime decoder", () => {
+    let error: unknown
+
+    try {
+      decodeGtfsRealtimeBytesSync(new Uint8Array([1, 2, 3]))
+    } catch (cause) {
+      error = cause
+    }
+
+    expect(isMtaError(error)).toBe(true)
+    expect(error).toBeInstanceOf(MtaDecodeError)
+    expect(error instanceof MtaDecodeError ? error._tag : undefined).toBe("MtaDecodeError")
   })
 
   test("returns typed decode errors for invalid GTFS realtime bytes", async () => {

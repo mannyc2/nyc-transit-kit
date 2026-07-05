@@ -13,15 +13,19 @@ import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import * as HttpClient from "effect/unstable/http/HttpClient"
-import type * as HttpClientError from "effect/unstable/http/HttpClientError"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import * as GtfsRealtimeBindings from "gtfs-realtime-bindings"
 import { MtaDecodeError, MtaHttpError, MtaInvalidInputError } from "./errors"
+import {
+  executeMtaRequest,
+  httpStatusText,
+  requestWithPolicy,
+  retryableStatusError
+} from "./internal/policy"
 
 export type GtfsRealtimeDecoderImplementation = (
   bytes: Uint8Array,
-  feed: GtfsFeedKind
+  feed?: GtfsFeedKind
 ) => Effect.Effect<MtaGtfsRealtimeDecodedSummary, MtaDecodeError>
 export type { MtaGtfsRealtimeCaptureRequestInput, MtaGtfsRealtimeProbeRequestInput }
 
@@ -88,35 +92,49 @@ const decodedHeader = (header: GtfsRealtimeBindings.transit_realtime.IFeedHeader
       : {})
   })
 
+export const decodeGtfsRealtimeBytesSync = (
+  bytes: Uint8Array,
+  feed?: GtfsFeedKind
+): MtaGtfsRealtimeDecodedSummary => {
+  try {
+    const raw = FeedMessage.decode(bytes)
+    const entities = raw.entity
+
+    return MtaGtfsRealtimeDecodedSummary.make({
+      ...(feed === undefined ? {} : { feed }),
+      entityCount: entities.length,
+      tripUpdateCount: entities.filter(
+        (entity) => entity.tripUpdate !== undefined && entity.tripUpdate !== null
+      ).length,
+      vehiclePositionCount: entities.filter(
+        (entity) => entity.vehicle !== undefined && entity.vehicle !== null
+      ).length,
+      alertCount: entities.filter((entity) => entity.alert !== undefined && entity.alert !== null)
+        .length,
+      header: decodedHeader(raw.header),
+      raw
+    })
+  } catch (cause) {
+    throw MtaDecodeError.make({
+      feed: feed ?? "unknown",
+      message: errorMessage(cause)
+    })
+  }
+}
+
 export const decodeGtfsRealtimeBytes = Effect.fn("Mta.decodeGtfsRealtimeBytes")(function* (
   bytes: Uint8Array,
-  feed: GtfsFeedKind
+  feed?: GtfsFeedKind
 ) {
   return yield* Effect.try({
-    try: () => {
-      const raw = FeedMessage.decode(bytes)
-      const entities = raw.entity
-
-      return MtaGtfsRealtimeDecodedSummary.make({
-        feed,
-        entityCount: entities.length,
-        tripUpdateCount: entities.filter(
-          (entity) => entity.tripUpdate !== undefined && entity.tripUpdate !== null
-        ).length,
-        vehiclePositionCount: entities.filter(
-          (entity) => entity.vehicle !== undefined && entity.vehicle !== null
-        ).length,
-        alertCount: entities.filter((entity) => entity.alert !== undefined && entity.alert !== null)
-          .length,
-        header: decodedHeader(raw.header),
-        raw
-      })
-    },
+    try: () => decodeGtfsRealtimeBytesSync(bytes, feed),
     catch: (cause) =>
-      MtaDecodeError.make({
-        feed,
-        message: errorMessage(cause)
-      })
+      cause instanceof MtaDecodeError
+        ? cause
+        : MtaDecodeError.make({
+            feed: feed ?? "unknown",
+            message: errorMessage(cause)
+          })
   })
 })
 
@@ -135,7 +153,7 @@ export class GtfsRealtimeDecoder extends Context.Service<
     decode: (bytes, feed) =>
       Effect.succeed(
         MtaGtfsRealtimeDecodedSummary.make({
-          feed,
+          ...(feed === undefined ? {} : { feed }),
           entityCount: 0,
           tripUpdateCount: 0,
           vehiclePositionCount: 0,
@@ -165,26 +183,7 @@ const decodeRealtimeInput =
 const decodeRealtimeProbeRequest = decodeRealtimeInput(MtaGtfsRealtimeProbeRequest)
 const decodeRealtimeCaptureRequest = decodeRealtimeInput(MtaGtfsRealtimeCaptureRequest)
 
-const httpStatusText = (status: number) => `HTTP ${status}`
 const isOkStatus = (status: number) => status >= 200 && status < 300
-
-const mapMtaHttpClientError = (operation: string, error: HttpClientError.HttpClientError) => {
-  const response = error.response
-
-  if (response !== undefined) {
-    return MtaHttpError.make({
-      operation,
-      status: response.status,
-      statusText: httpStatusText(response.status)
-    })
-  }
-
-  return MtaHttpError.make({
-    operation,
-    status: 0,
-    statusText: error.message
-  })
-}
 
 const failGtfsRealtimeStatus = (status: number) =>
   MtaHttpError.make({
@@ -197,8 +196,12 @@ const fetchGtfsRealtimeBytes = Effect.fn("Mta.fetchGtfsRealtimeBytes")(function*
   readonly feed: GtfsFeedKind
   readonly url: string
 }) {
-  const response = yield* HttpClient.execute(HttpClientRequest.get(request.url)).pipe(
-    Effect.mapError((error) => mapMtaHttpClientError("gtfs-realtime", error))
+  const response = yield* requestWithPolicy(
+    "gtfs-realtime",
+    executeMtaRequest("gtfs-realtime", HttpClientRequest.get(request.url)),
+    {
+      retryableResult: (response) => retryableStatusError("gtfs-realtime", response.status)
+    }
   )
 
   const buffer = yield* response.arrayBuffer.pipe(

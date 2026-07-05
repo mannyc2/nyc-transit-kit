@@ -1,6 +1,6 @@
 export const packageName = "@nyc-transit-kit/soda3"
 export { buildCatalogSearchUrl, catalogSearch } from "./catalog"
-export type { Soda3ClientConfigShape, Soda3LayerOptions } from "./client"
+export type { FetchImplementation, Soda3ClientConfigShape, Soda3LayerOptions } from "./client"
 export {
   Soda3ClientConfig,
   Soda3HttpLive,
@@ -30,7 +30,10 @@ export {
   TimeoutError
 } from "./errors"
 export { exportResponse } from "./export"
-export { queryRows } from "./query"
+export type { Soda3DatasetMetadataRequestInput } from "./metadata"
+export { fetchDatasetMetadata } from "./metadata"
+export type { Soda3CountRowsInput, Soda3QueryAllRowsInput } from "./query"
+export { countRows, queryAllRows, queryRows } from "./query"
 export type {
   SocrataTimestampWindow,
   SocrataYearMonth,

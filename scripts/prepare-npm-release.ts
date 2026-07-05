@@ -170,18 +170,8 @@ const addReleaseMetadata = (
   addFileEntries(manifest, ["LICENSE", "README.md"])
 }
 
-const writePackageReadme = async (stageDirectory: string, packageName: string) =>
-  Bun.write(
-    join(stageDirectory, "README.md"),
-    [
-      `# ${packageName}`,
-      "",
-      "Part of `nyc-transit-kit`, an Effect-native Bun toolkit for official NYC and MTA transit data APIs.",
-      "",
-      "See the repository README and docs/api-reference.md for public import paths, CLI commands, and release notes.",
-      ""
-    ].join("\n")
-  )
+const copyPackageReadme = async (stageDirectory: string, packageDirectory: string) =>
+  copyFile(join(packageRoot, packageDirectory, "README.md"), join(stageDirectory, "README.md"))
 
 const stageCliBinWrappers = async (stageDirectory: string, manifest: JsonRecord) => {
   const binDirectory = join(stageDirectory, "bin")
@@ -250,7 +240,7 @@ for (const packageDirectory of await packageDirectories()) {
     await stageCliBinWrappers(stageDirectory, manifest)
   }
   await copyFile(join(rootPath, "LICENSE"), join(stageDirectory, "LICENSE"))
-  await writePackageReadme(stageDirectory, packageName)
+  await copyPackageReadme(stageDirectory, packageDirectory)
   await writeJson(manifestPath, manifest)
 
   await runCommand(["npm", "pack", "--json", "--pack-destination", artifactsRoot, stageDirectory], {

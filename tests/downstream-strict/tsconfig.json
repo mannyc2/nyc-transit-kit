@@ -5,6 +5,7 @@
     "baseUrl": "../..",
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "ignoreDeprecations": "6.0",
+    "isolatedModules": true,
     "module": "Preserve",
     "moduleDetection": "force",
     "moduleResolution": "Bundler",

@@ -71,9 +71,10 @@ families.
 | --- | --- |
 | `@nyc-transit-kit/soda3` | Convenience root for the main SODA3 surface. |
 | `@nyc-transit-kit/soda3/client` | Service and high-level operation re-exports. |
-| `@nyc-transit-kit/soda3/query` | `queryRows` operation. |
+| `@nyc-transit-kit/soda3/query` | `queryRows`, `queryAllRows`, and `countRows` operations. |
 | `@nyc-transit-kit/soda3/export` | `exportResponse` operation. |
 | `@nyc-transit-kit/soda3/catalog` | `catalogSearch` and `buildCatalogSearchUrl`. |
+| `@nyc-transit-kit/soda3/metadata` | Discovery-backed exact dataset metadata lookup. |
 | `@nyc-transit-kit/soda3/endpoints` | SODA3 URL builders and request decoders. |
 | `@nyc-transit-kit/soda3/errors` | SODA3 typed errors, `isSoda3ClientError`, and retry helpers. |
 | `@nyc-transit-kit/soda3/soql` | SoQL constants, validated identifiers, parameter fragments, ordering, and Socrata date-window helpers. |
@@ -83,9 +84,12 @@ Important exports:
 | Export | Import path | Notes |
 | --- | --- | --- |
 | `queryRows` | `@nyc-transit-kit/soda3/query` or `@nyc-transit-kit/soda3/client` | Runs a SODA3 query and returns decoded rows. |
+| `queryAllRows` | `@nyc-transit-kit/soda3/query` or `@nyc-transit-kit/soda3/client` | Runs a SODA3 query page-by-page until a short page is returned. |
+| `countRows` | `@nyc-transit-kit/soda3/query` or `@nyc-transit-kit/soda3/client` | Runs `SELECT count(*)` with an optional `WHERE` clause and returns a numeric count. |
 | `exportResponse` | `@nyc-transit-kit/soda3/export` or `@nyc-transit-kit/soda3/client` | Returns the raw export `Response`. |
 | `catalogSearch` | `@nyc-transit-kit/soda3/catalog` or `@nyc-transit-kit/soda3/client` | Searches Socrata discovery catalog. |
-| `Soda3ClientConfig` | `@nyc-transit-kit/soda3/client` | Effect service for app token, retry count, and timeout config. |
+| `fetchDatasetMetadata` | `@nyc-transit-kit/soda3/metadata` or `@nyc-transit-kit/soda3/client` | Fetches one exact Discovery catalog result by domain and dataset id. |
+| `Soda3ClientConfig` | `@nyc-transit-kit/soda3/client` | Effect service for app token, retry count, retry delay, and timeout config. |
 | `soda3Layer` | `@nyc-transit-kit/soda3/client` | Explicit config and fetch layer for SODA3 programs. |
 | `soda3ConfigLayer` | `@nyc-transit-kit/soda3/client` | Builds only the SODA3 config service layer. |
 | `soda3FetchLayer` | `@nyc-transit-kit/soda3/client` | Builds the live or custom-fetch HTTP layer. |
@@ -93,6 +97,7 @@ Important exports:
 | `Soda3Live` | `@nyc-transit-kit/soda3/client` | Default config plus live Effect HTTP layer. |
 | `Soda3ClientConfigShape` | `@nyc-transit-kit/soda3/client` | Type for config service values. |
 | `Soda3LayerOptions` | `@nyc-transit-kit/soda3/client` | Type for `soda3Layer` options, including custom fetch. |
+| `FetchImplementation` | `@nyc-transit-kit/soda3/client` | Minimal structural fetch type accepted by SODA3 and MTA fetch layers. |
 | `buildQueryUrl` | `@nyc-transit-kit/soda3/endpoints` | Builds `/api/v3/views/<dataset>/query.json`. |
 | `buildExportUrl` | `@nyc-transit-kit/soda3/endpoints` | Builds SODA3 export URLs. |
 | `buildCatalogSearchUrl` | `@nyc-transit-kit/soda3/endpoints` | Builds Socrata discovery search URLs. |
@@ -125,6 +130,28 @@ Important exports:
 | `soqlTimestampRange` | `@nyc-transit-kit/soda3/soql` | Builds a half-open timestamp range predicate and parameters. |
 | `soqlMonthWindow` | `@nyc-transit-kit/soda3/soql` | Combines `socrataMonthWindow` and `soqlTimestampRange`. |
 | `soqlYearMonthRange` | `@nyc-transit-kit/soda3/soql` | Builds an inclusive range for datasets that store year/month columns separately. |
+
+Catalog search uses Socrata's Discovery API. `Soda3CatalogSearchRequest`
+supports `query`, `ids`, `categories`, `tags`, `order`, `limit`, and `offset`
+in addition to the required `domain`. `Soda3CatalogSearchResponse` mirrors the
+Discovery wire shape: the result count is `resultSetSize`, dataset domain is
+available on each result's `metadata.domain`, and generic discovery fields such
+as `classification.domain_metadata`, `resource.columns_name`,
+`resource.columns_field_name`, `resource.columns_datatype`, `permalink`, and
+`warnings` decode when present.
+
+`fetchDatasetMetadata` is a thin exact-id Discovery lookup over the same catalog
+result contract. It calls `/api/catalog/v1` with `domains`, `search_context`,
+`only=dataset`, `ids`, and `limit=1`; it does not call legacy `/api/views/...`,
+`/resource/...`, or a guessed SODA3 view metadata URL.
+
+`queryAllRows` makes independent page requests with the same SoQL query. Include
+an explicit `ORDER BY` in the query, or choose an appropriate SODA3
+`orderingSpecifier`, whenever stable pagination matters.
+
+SODA3 retry config uses `retryTimes` plus optional `retryDelayMs`. A missing or
+zero `retryDelayMs` preserves immediate retries; a positive value uses
+exponential backoff. `timeoutMs` is a total budget covering all retry attempts.
 
 Effect-native SODA3 query:
 
@@ -188,6 +215,7 @@ helpers. MTA Open Data access delegates through SODA3.
 | Import path | Purpose |
 | --- | --- |
 | `@nyc-transit-kit/mta` | Convenience root for the main MTA surface. |
+| `@nyc-transit-kit/mta/client` | MTA HTTP/config layers: `MtaClientConfig`, `mtaConfigLayer`, `mtaFetchLayer`, `mtaLayer`, and `MtaHttpLive`. |
 | `@nyc-transit-kit/mta/gtfs-static` | GTFS static fetch/probe operations and `MtaHttpLive`. |
 | `@nyc-transit-kit/mta/gtfs-realtime` | GTFS realtime probe operation and decoder service. |
 | `@nyc-transit-kit/mta/feeds` | MTA direct feed descriptors and lookup helpers. |
@@ -198,10 +226,12 @@ helpers. MTA Open Data access delegates through SODA3.
 | `@nyc-transit-kit/mta/datasets` | MTA Open Data descriptors and lookup helpers. |
 | `@nyc-transit-kit/mta/errors` | MTA typed errors and `isMtaError`. |
 
-Important exports include `MtaHttpLive`, `probeGtfsStatic`,
-`fetchGtfsStatic`, `fetchGtfsStaticResponse`,
+Important exports include `MtaClientConfig`, `mtaConfigLayer`, `mtaFetchLayer`,
+`mtaLayer`, `MtaHttpLive`, `probeGtfsStatic`, `fetchGtfsStatic`,
+`fetchGtfsStaticResponse`,
 `GtfsRealtimeDecoder`, `GtfsRealtimeDecoderImplementation`,
-`decodeGtfsRealtimeBytes`, `probeGtfsRealtime`, `captureGtfsRealtime`,
+`decodeGtfsRealtimeBytes`, `decodeGtfsRealtimeBytesSync`,
+`probeGtfsRealtime`, `captureGtfsRealtime`,
 `fetchMtaJsonDirect`, `redactMtaJsonDirectUrl`, `queryMtaOpenData`,
 `decodeMtaOpenDataCatalogRow`, `decodeMtaOpenDataCatalogRows`,
 `decodeMtaElevatorEscalatorCurrent`,
@@ -209,7 +239,13 @@ Important exports include `MtaHttpLive`, `probeGtfsStatic`,
 `findMtaOpenDataDataset`, `mtaGtfsStaticFeeds`, `mtaGtfsRealtimeFeeds`,
 `mtaJsonDirectFeeds`, `mtaDirectFeeds`, `findMtaGtfsStaticFeed`,
 `findMtaGtfsRealtimeFeed`, `findMtaJsonDirectFeed`, `MtaInvalidInputError`,
-`MtaHttpError`, `MtaDecodeError`, and `MtaError`.
+`MtaHttpError`, `MtaDecodeError`, `MtaTimeoutError`,
+`MtaRetryExhaustedError`, and `MtaError`.
+
+MTA direct-feed config uses `retryTimes`, optional `retryDelayMs`, and optional
+`timeoutMs`, with the same semantics as SODA3. Existing callers can still
+provide only an HTTP layer; the MTA config service defaults to no retries when
+absent.
 
 Use `mtaOpenDataDatasets` and `findMtaOpenDataDataset` as the scalable
 descriptor discovery surface. Existing named descriptor constants remain
@@ -223,46 +259,37 @@ descriptor id or name, while `--url` remains available as an advanced override.
 GTFS static probe with injected fetch:
 
 ```ts
-import { probeGtfsStatic } from "@nyc-transit-kit/mta/gtfs-static"
+import { mtaFetchLayer, probeGtfsStatic } from "@nyc-transit-kit/mta/gtfs-static"
+import type { FetchImplementation } from "@nyc-transit-kit/soda3/client"
 import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 
-const customFetch: typeof fetch = Object.assign(
-  async () =>
-    new Response(null, {
-      status: 200,
-      headers: { "content-type": "application/zip" }
-    }),
-  {
-    preconnect: fetch.preconnect
-  }
-)
+const customFetch: FetchImplementation = async () =>
+  new Response(null, {
+    status: 200,
+    headers: { "content-type": "application/zip" }
+  })
 
 const program = probeGtfsStatic({
   url: "https://new.mta.info/feed.zip"
-}).pipe(
-  Effect.provide(
-    FetchHttpClient.layer.pipe(
-      Layer.provide(Layer.succeed(FetchHttpClient.Fetch, customFetch))
-    )
-  )
-)
+}).pipe(Effect.provide(mtaFetchLayer(customFetch)))
 ```
 
 GTFS realtime uses `GtfsRealtimeDecoder.Live` by default at the CLI and Promise
 compat edges. The live decoder parses standard GTFS-RT `FeedMessage` bytes and
-returns a stable decoded summary with `feed`, `entityCount`, `tripUpdateCount`,
-`vehiclePositionCount`, `alertCount`, optional `header`, and `raw` decoded data.
-MTA custom extension fields can remain available inside `raw`, but v0 does not
-yet normalize every MTA extension into first-class schemas.
+returns a stable decoded summary with optional `feed`, `entityCount`,
+`tripUpdateCount`, `vehiclePositionCount`, `alertCount`, optional `header`, and
+`raw` decoded data. `feed` is a caller-supplied label; decode-only callers can
+call `decodeGtfsRealtimeBytes(bytes)` or `decodeGtfsRealtimeBytesSync(bytes)`
+without it, and the summary will omit `feed`. MTA custom extension fields can
+remain available inside `raw`, but v0 does not yet normalize every MTA extension
+into first-class schemas.
 
 Use `GtfsRealtimeDecoder.Passthrough` only for tests or caller-provided fallback
 behavior when you intentionally do not want protobuf decoding.
 
 ```ts
 import { GtfsRealtimeDecoder, probeGtfsRealtime } from "@nyc-transit-kit/mta/gtfs-realtime"
-import { MtaHttpLive } from "@nyc-transit-kit/mta/gtfs-static"
+import { MtaHttpLive } from "@nyc-transit-kit/mta/client"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 
@@ -278,7 +305,7 @@ metadata manifest with a SHA-256 digest and redacted URL. The result includes
 
 ```ts
 import { captureGtfsRealtime } from "@nyc-transit-kit/mta/gtfs-realtime"
-import { MtaHttpLive } from "@nyc-transit-kit/mta/gtfs-static"
+import { MtaHttpLive } from "@nyc-transit-kit/mta/client"
 import * as Effect from "effect/Effect"
 
 const program = captureGtfsRealtime({
@@ -293,14 +320,14 @@ API keys are supplied explicitly and redacted from returned metadata.
 ```ts
 import { findMtaJsonDirectFeed } from "@nyc-transit-kit/mta/feeds"
 import { fetchMtaJsonDirect } from "@nyc-transit-kit/mta/json-direct"
-import { MtaHttpLive } from "@nyc-transit-kit/mta/gtfs-static"
+import { MtaHttpLive } from "@nyc-transit-kit/mta/client"
 import * as Effect from "effect/Effect"
 
 const feed = findMtaJsonDirectFeed("bus-time-vehicle-monitoring")
 
 const program =
   feed === undefined
-    ? Effect.succeed(undefined)
+    ? Effect.void
     : fetchMtaJsonDirect({
         surface: feed.surface,
         url: feed.url,
@@ -371,31 +398,15 @@ NYC Open Data query with injected SODA3 fetch:
 
 ```ts
 import { queryNycOpenDataDataset } from "@nyc-transit-kit/nyc-open-data/query"
-import { Soda3ClientConfig } from "@nyc-transit-kit/soda3/client"
+import { soda3Layer, type FetchImplementation } from "@nyc-transit-kit/soda3/client"
 import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 
-const customFetch: typeof fetch = Object.assign(
-  async () => Response.json({ rows: [] }),
-  {
-    preconnect: fetch.preconnect
-  }
-)
+const customFetch: FetchImplementation = async () => Response.json({ rows: [] })
 
 const program = queryNycOpenDataDataset({
   datasetId: "ycrg-ses3",
   query: "SELECT *"
-}).pipe(
-  Effect.provide(
-    Layer.mergeAll(
-      Soda3ClientConfig.Default,
-      FetchHttpClient.layer.pipe(
-        Layer.provide(Layer.succeed(FetchHttpClient.Fetch, customFetch))
-      )
-    )
-  )
-)
+}).pipe(Effect.provide(soda3Layer({ fetch: customFetch })))
 ```
 
 ## `@nyc-transit-kit/nyc-dot`
@@ -452,8 +463,8 @@ bun run scripts/update-descriptor-records.ts --provider nyc-dot --input ./tmp/do
 
 Supported providers are `nyc-open-data`, `nyc-dot`, and `mta-open-data`. The
 input may be normalized descriptor records or Socrata catalog-like fragments
-with `resource.id`, `resource.name`, `resource.domain`, and optional
-`resource.description`. Normalized records may also include `sourceUrl`,
+with `resource.id`, `resource.name`, optional `resource.description`, and
+`metadata.domain`. Normalized records may also include `sourceUrl`,
 `tags`, `temporalFields`, `adapterStatus`, and `lastVerified`; the update script
 preserves those fields and validates them through the provider descriptor
 schemas. The script validates records locally; default tests do not contact live
@@ -483,7 +494,7 @@ duplicate endpoint construction, retries, schemas, or provider logic.
 | Import path | Purpose |
 | --- | --- |
 | `@nyc-transit-kit/compat` | Convenience root for Promise wrappers. |
-| `@nyc-transit-kit/compat/soda3` | `querySoda3Rows`, `exportSoda3Response`, `searchSoda3Catalog`, `Soda3CompatOptions`, SODA3 errors, and `isSoda3ClientError`. |
+| `@nyc-transit-kit/compat/soda3` | `querySoda3Rows`, `queryAllSoda3Rows`, `countSoda3Rows`, `fetchSoda3DatasetMetadata`, `exportSoda3Response`, `searchSoda3Catalog`, `Soda3CompatOptions`, SODA3 errors, and `isSoda3ClientError`. |
 | `@nyc-transit-kit/compat/mta` | MTA GTFS static, GTFS realtime, JSON direct, Open Data Promise wrappers, MTA errors, and `isMtaError`. |
 | `@nyc-transit-kit/compat/nyc-open-data` | `queryNycOpenDataRows`, `exportNycOpenDataResponse`, `searchNycOpenData`. |
 | `@nyc-transit-kit/compat/nyc-dot` | `queryNycDotRows`, `exportNycDotResponse`, `UnsupportedDatasetError`, and `isUnsupportedDatasetError`. |
@@ -498,8 +509,11 @@ channels.
 | Native operation | Compat wrapper | Options |
 | --- | --- | --- |
 | `queryRows` | `querySoda3Rows` | `Soda3CompatOptions` |
+| `queryAllRows` | `queryAllSoda3Rows` | `Soda3CompatOptions` |
+| `countRows` | `countSoda3Rows` | `Soda3CompatOptions` |
 | `exportResponse` | `exportSoda3Response` | `Soda3CompatOptions` |
 | `catalogSearch` | `searchSoda3Catalog` | `Soda3CompatOptions` |
+| `fetchDatasetMetadata` | `fetchSoda3DatasetMetadata` | `Soda3CompatOptions` |
 | `queryNycDotDataset` | `queryNycDotRows` | `Soda3CompatOptions` |
 | `exportNycDotDataset` | `exportNycDotResponse` | `Soda3CompatOptions` |
 | `queryNycOpenDataDataset` | `queryNycOpenDataRows` | `Soda3CompatOptions` |
@@ -516,12 +530,17 @@ channels.
 Native-only surfaces include synchronous descriptor lookup helpers and low-level
 Effect-native decoder helpers.
 
+`Soda3CompatOptions` accepts `appToken`, `retryTimes`, `retryDelayMs`,
+`timeoutMs`, and custom `fetch`. `MtaCompatOptions` accepts `retryTimes`,
+`retryDelayMs`, `timeoutMs`, custom `fetch`, and an optional GTFS realtime
+decoder. `timeoutMs` remains a total budget covering all retry attempts.
+
 Compat error guards by family:
 
 | Family | Guard | Error tags |
 | --- | --- | --- |
 | SODA3 | `isSoda3ClientError` | `InvalidInputError`, `ProviderHttpError`, `ProviderContractError`, `TimeoutError`, `RetryExhaustedError` |
-| MTA | `isMtaError` | `MtaHttpError`, `MtaDecodeError`, `MtaInvalidInputError` |
+| MTA | `isMtaError` | `MtaHttpError`, `MtaDecodeError`, `MtaInvalidInputError`, `MtaTimeoutError`, `MtaRetryExhaustedError` |
 | NYC DOT descriptors | `isUnsupportedDatasetError` | `UnsupportedDatasetError` |
 
 `isTransitKitCompatError` composes those native guards. It narrows errors
@@ -614,4 +633,6 @@ tests, and examples. It is not a mirror of full provider datasets.
 Current exports include `packageName`, `fixturePolicy`,
 `sampleSocrataDatasetId`, `sampleSocrataDomain`, `sampleSoda3QueryResponse`,
 `sampleSocrataCatalogResponse`, `sampleMtaOpenDataCatalogRow`, and
-`sampleMtaElevatorEscalatorCurrentJson`.
+`sampleMtaElevatorEscalatorCurrentJson`,
+`sampleGtfsRealtimeFeedMessageBase64`, and
+`sampleGtfsRealtimeFeedMessageBytes`.

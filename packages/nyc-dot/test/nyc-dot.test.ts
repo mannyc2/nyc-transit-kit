@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { Soda3ClientConfig } from "@nyc-transit-kit/soda3/client"
+import {
+  type FetchImplementation,
+  Soda3ClientConfig,
+  soda3FetchLayer
+} from "@nyc-transit-kit/soda3/client"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 import {
   busLanesLocalStreets,
   decodeBusLaneRow,
@@ -22,22 +25,16 @@ import {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
 
-type FetchInput = Parameters<typeof fetch>[0]
-type FetchInit = Parameters<typeof fetch>[1]
-type FetchHandler = (input: FetchInput, init?: FetchInit) => ReturnType<typeof fetch>
+type FetchInput = Parameters<FetchImplementation>[0]
+type FetchInit = Parameters<FetchImplementation>[1]
+type FetchHandler = FetchImplementation
 
-const makeFetch = (handler: FetchHandler): typeof fetch =>
-  Object.assign(handler, {
-    preconnect: fetch.preconnect
-  })
+const makeFetch = (handler: FetchHandler): FetchImplementation => handler
 
 const requestFromFetchInput = (input: FetchInput, init?: FetchInit) =>
   input instanceof Request ? input : new Request(input.toString(), init)
 
-const fetchLayer = (handler: FetchHandler) =>
-  FetchHttpClient.layer.pipe(
-    Layer.provide(Layer.succeed(FetchHttpClient.Fetch, makeFetch(handler)))
-  )
+const fetchLayer = (handler: FetchHandler) => soda3FetchLayer(makeFetch(handler))
 
 describe("@nyc-transit-kit/nyc-dot", () => {
   test("declares initial DOT dataset descriptors", () => {

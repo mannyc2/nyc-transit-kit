@@ -43,6 +43,10 @@ bun run build:cli
 
 Use `bun test <path>` for focused TDD loops.
 
+Release staging checks such as `bun run release:prepare:npm` and
+`bun run check:npm-stage` may contact npm while packing or validating staged
+archives; keep them in release verification, not in the default inner loop.
+
 ## Implementation Order
 
 Follow the planned shape in `SPEC.md` and `docs/implementation-plan.md`:

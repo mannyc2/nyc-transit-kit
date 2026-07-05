@@ -1,4 +1,6 @@
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
 import * as HttpClient from "effect/unstable/http/HttpClient"
 import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type { Soda3ClientError } from "../errors"
@@ -20,6 +22,19 @@ export const addHeaders = (config: Soda3ClientConfigShape) => ({
 
 export { retryableStatus }
 
+const retryPolicy = (retryTimes: number, retryDelayMs: number | undefined) =>
+  retryDelayMs === undefined || retryDelayMs <= 0
+    ? {
+        times: retryTimes,
+        while: isRetryableProviderError
+      }
+    : {
+        schedule: Schedule.exponential(Duration.millis(retryDelayMs)).pipe(
+          Schedule.both(Schedule.recurs(retryTimes))
+        ),
+        while: isRetryableProviderError
+      }
+
 export const requestWithPolicy = <A>(
   operation: string,
   effect: Effect.Effect<A, Soda3ClientError, HttpClient.HttpClient | Soda3ClientConfig>
@@ -30,10 +45,7 @@ export const requestWithPolicy = <A>(
     const retried =
       retryTimes > 0
         ? effect.pipe(
-            Effect.retry({
-              times: retryTimes,
-              while: isRetryableProviderError
-            }),
+            Effect.retry(retryPolicy(retryTimes, config.retryDelayMs)),
             Effect.catchIf(isRetryableProviderError, (error) =>
               Effect.fail(
                 RetryExhaustedError.make({

@@ -44,10 +44,22 @@ export class Soda3QueryResponse extends Schema.Class<Soda3QueryResponse>("Soda3Q
   rowCount: Schema.optionalKey(NonNegativeInteger)
 }) {}
 
-export class Soda3ByteRange extends Schema.Class<Soda3ByteRange>("Soda3ByteRange")({
+type Soda3ByteRangeShape = {
+  readonly start: NonNegativeInteger
+  readonly end?: NonNegativeInteger
+}
+
+export const Soda3ByteRange = Schema.Struct({
   start: NonNegativeInteger,
-  end: NonNegativeInteger
-}) {}
+  end: Schema.optionalKey(NonNegativeInteger)
+}).check(
+  Schema.makeFilter<Soda3ByteRangeShape>((range) =>
+    range.end === undefined || range.end >= range.start
+      ? undefined
+      : "Expected byte range end to be greater than or equal to start"
+  )
+)
+export type Soda3ByteRange = typeof Soda3ByteRange.Type
 
 export class Soda3ExportRequest extends Schema.Class<Soda3ExportRequest>("Soda3ExportRequest")({
   domain: SocrataDomain,
@@ -69,31 +81,76 @@ export class Soda3CatalogSearchRequest extends Schema.Class<Soda3CatalogSearchRe
 )({
   domain: SocrataDomain,
   query: Schema.optionalKey(Schema.String),
+  ids: Schema.optionalKey(Schema.Array(SocrataDatasetId)),
+  categories: Schema.optionalKey(Schema.Array(Schema.String)),
+  tags: Schema.optionalKey(Schema.Array(Schema.String)),
+  order: Schema.optionalKey(Schema.String),
   limit: Schema.optionalKey(PositiveInteger),
   offset: Schema.optionalKey(NonNegativeInteger)
 }) {}
 export type Soda3CatalogSearchRequestInput = Schema.Codec.Encoded<typeof Soda3CatalogSearchRequest>
+
+export class Soda3DatasetMetadataRequest extends Schema.Class<Soda3DatasetMetadataRequest>(
+  "Soda3DatasetMetadataRequest"
+)({
+  domain: SocrataDomain,
+  datasetId: SocrataDatasetId
+}) {}
+export type Soda3DatasetMetadataRequestInput = Schema.Codec.Encoded<
+  typeof Soda3DatasetMetadataRequest
+>
 
 export class Soda3CatalogResource extends Schema.Class<Soda3CatalogResource>(
   "Soda3CatalogResource"
 )({
   id: SocrataDatasetId,
   name: Schema.String,
-  domain: SocrataDomain,
   type: Schema.optionalKey(Schema.String),
-  description: Schema.optionalKey(Schema.String)
+  description: Schema.optionalKey(Schema.String),
+  attribution: Schema.optionalKey(Schema.String),
+  updatedAt: Schema.optionalKey(Schema.String),
+  createdAt: Schema.optionalKey(Schema.String),
+  metadata_updated_at: Schema.optionalKey(Schema.String),
+  data_updated_at: Schema.optionalKey(Schema.String),
+  publication_date: Schema.optionalKey(Schema.String),
+  columns_name: Schema.optionalKey(Schema.Array(Schema.String)),
+  columns_field_name: Schema.optionalKey(Schema.Array(Schema.String)),
+  columns_datatype: Schema.optionalKey(Schema.Array(Schema.String)),
+  columns_description: Schema.optionalKey(Schema.Array(Schema.String)),
+  columns_format: Schema.optionalKey(Schema.Array(Schema.Unknown))
+}) {}
+
+export class Soda3CatalogDomainMetadataEntry extends Schema.Class<Soda3CatalogDomainMetadataEntry>(
+  "Soda3CatalogDomainMetadataEntry"
+)({
+  key: Schema.String,
+  value: Schema.String
+}) {}
+
+export class Soda3CatalogClassification extends Schema.Class<Soda3CatalogClassification>(
+  "Soda3CatalogClassification"
+)({
+  categories: Schema.optionalKey(Schema.Array(Schema.String)),
+  tags: Schema.optionalKey(Schema.Array(Schema.String)),
+  domain_category: Schema.optionalKey(Schema.String),
+  domain_tags: Schema.optionalKey(Schema.Array(Schema.String)),
+  domain_metadata: Schema.optionalKey(Schema.Array(Soda3CatalogDomainMetadataEntry))
 }) {}
 
 export class Soda3CatalogResultFragment extends Schema.Class<Soda3CatalogResultFragment>(
   "Soda3CatalogResultFragment"
 )({
   resource: Soda3CatalogResource,
-  metadata: Schema.optionalKey(Schema.Record(Schema.String, Schema.Unknown))
+  classification: Schema.optionalKey(Soda3CatalogClassification),
+  metadata: Schema.optionalKey(Schema.Record(Schema.String, Schema.Unknown)),
+  permalink: Schema.optionalKey(Schema.String),
+  link: Schema.optionalKey(Schema.String)
 }) {}
 
 export class Soda3CatalogSearchResponse extends Schema.Class<Soda3CatalogSearchResponse>(
   "Soda3CatalogSearchResponse"
 )({
   results: Schema.Array(Soda3CatalogResultFragment),
-  resultCount: Schema.optionalKey(NonNegativeInteger)
+  resultSetSize: Schema.optionalKey(NonNegativeInteger),
+  warnings: Schema.optionalKey(Schema.Array(Schema.Unknown))
 }) {}
