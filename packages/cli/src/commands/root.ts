@@ -2,13 +2,11 @@ import * as Effect from "effect/Effect"
 import * as Command from "effect/unstable/cli/Command"
 import * as Flag from "effect/unstable/cli/Flag"
 import { localBinaryName } from "../index"
-import { catalogCommand } from "./catalog"
 import { mtaCommand } from "./mta"
 import { nycDotCommand } from "./nyc-dot"
 import { nycOpenDataCommand } from "./nyc-open-data"
-import { failCommand } from "./shared"
-import { socrataCommand } from "./socrata"
-import { CliCommandContext } from "./types"
+import { CliCommandContext, failCommand } from "./shared"
+import { catalogCommand, socrataCommand } from "./socrata"
 
 const handleMissingCommand = () =>
   Effect.gen(function* () {

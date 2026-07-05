@@ -1,16 +1,16 @@
 export const packageName = "@nyc-transit-kit/nyc-dot"
-export { decodeBusLaneRow } from "./bus-lanes"
-export { exportNycDotDataset, queryNycDotDataset } from "./client"
 export {
   busLanesLocalStreets,
+  exportNycDotDataset,
   findNycDotDataset,
   initialDatasetIds,
+  isUnsupportedDatasetError,
   nycDotDatasets,
   nycDotOpenDataDomain,
+  queryNycDotDataset,
   requireNycDotDataset,
   trafficSpeeds,
-  trafficVolumeCounts
+  trafficVolumeCounts,
+  UnsupportedDatasetError
 } from "./datasets"
-export { isUnsupportedDatasetError, UnsupportedDatasetError } from "./errors"
-export { decodeTrafficSpeedRow } from "./traffic-speeds"
-export { decodeTrafficVolumeRow } from "./traffic-volume"
+export { decodeBusLaneRow, decodeTrafficSpeedRow, decodeTrafficVolumeRow } from "./rows"

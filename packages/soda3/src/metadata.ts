@@ -4,23 +4,13 @@ import {
   type Soda3DatasetMetadataRequestInput
 } from "@nyc-transit-kit/contracts/soda3"
 import * as Effect from "effect/Effect"
-import * as Schema from "effect/Schema"
 import { catalogSearch } from "./catalog"
-import { InvalidInputError, ProviderContractError } from "./errors"
+import { ProviderContractError } from "./errors"
+import { decodeInput } from "./internal/decode"
 
 export type { Soda3DatasetMetadataRequestInput }
 
-const decodeDatasetMetadataRequest = (input: unknown) =>
-  Schema.decodeUnknownEffect(Soda3DatasetMetadataRequest)(input).pipe(
-    Effect.catchTag("SchemaError", (error) =>
-      Effect.fail(
-        InvalidInputError.make({
-          operation: "metadata",
-          message: error.message
-        })
-      )
-    )
-  )
+const decodeDatasetMetadataRequest = decodeInput("metadata", Soda3DatasetMetadataRequest)
 
 const matchingResult = (results: ReadonlyArray<Soda3CatalogResultFragment>, datasetId: string) =>
   results.find((result) => String(result.resource.id) === datasetId)

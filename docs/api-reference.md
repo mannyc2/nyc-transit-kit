@@ -30,14 +30,12 @@ and provider DTO fragments need validation.
 
 | Import path | Purpose |
 | --- | --- |
-| `@nyc-transit-kit/contracts` | Convenience root with common schemas and type aliases. |
-| `@nyc-transit-kit/contracts/metadata` | Package metadata, schema version, API family, and CLI envelope status. |
+| `@nyc-transit-kit/contracts` | Convenience root with common schemas and inferred schema types. |
+| `@nyc-transit-kit/contracts/metadata` | Package metadata, schema version, and API family. |
 | `@nyc-transit-kit/contracts/ids` | Shared identifiers such as Socrata dataset IDs, domains, and ISO dates. |
-| `@nyc-transit-kit/contracts/descriptor-registry` | Generic descriptor registry helper for provider-owned catalogs. |
+| `@nyc-transit-kit/contracts/descriptors` | Generic descriptor registry helpers, NYC Open Data descriptors, and NYC DOT descriptor/row DTO contracts. |
 | `@nyc-transit-kit/contracts/soda3` | SODA3 request, response, catalog, pagination, and export contracts. |
 | `@nyc-transit-kit/contracts/mta` | MTA GTFS static, realtime, and Open Data descriptor contracts. |
-| `@nyc-transit-kit/contracts/nyc-open-data` | NYC Open Data dataset descriptor contracts. |
-| `@nyc-transit-kit/contracts/nyc-dot` | NYC DOT dataset descriptors and row DTO contracts. |
 | `@nyc-transit-kit/contracts/cli` | CLI success and error envelope schemas. |
 | `@nyc-transit-kit/contracts/release` | CLI release manifest and artifact schemas. |
 
@@ -50,7 +48,7 @@ Important exports include `Soda3QueryRequest`, `Soda3QueryResponse`,
 `MtaOpenDataCatalogRow`, `MtaElevatorEscalatorCurrentRow`,
 `MtaElevatorEscalatorCurrent`,
 `NycOpenDataDatasetDescriptor`, `NycDotDatasetDescriptor`,
-`DatasetDescriptorAdapterStatus`, `DescriptorMetadataFields`,
+`DatasetDescriptorAdapterStatus`, `DatasetDescriptorMetadataFields`,
 `makeDescriptorRegistry`, `CliEnvelope`, and `CliReleaseManifest`.
 
 ```ts
@@ -78,6 +76,7 @@ families.
 | `@nyc-transit-kit/soda3/endpoints` | SODA3 URL builders and request decoders. |
 | `@nyc-transit-kit/soda3/errors` | SODA3 typed errors, `isSoda3ClientError`, and retry helpers. |
 | `@nyc-transit-kit/soda3/soql` | SoQL constants, validated identifiers, parameter fragments, ordering, and Socrata date-window helpers. |
+| `@nyc-transit-kit/soda3/transport` | Low-level shared HTTP transport policy helpers used by provider packages. |
 
 Important exports:
 
@@ -114,6 +113,11 @@ Important exports:
 | `RetryExhaustedError` | `@nyc-transit-kit/soda3/errors` | Retry budget exhausted. |
 | `isSoda3ClientError` | `@nyc-transit-kit/soda3/errors` | Narrows native SODA3 client failures. |
 | `isRetryableProviderError` | `@nyc-transit-kit/soda3/errors` | Narrows retryable provider failures. |
+| `withRequestPolicy` | `@nyc-transit-kit/soda3/transport` | Applies shared retry, exhaustion, and timeout behavior with provider-specific error adapters. |
+| `toWebResponse` | `@nyc-transit-kit/soda3/transport` | Converts an Effect HTTP response into a Web `Response` without buffering the body. |
+| `contentLengthOf` | `@nyc-transit-kit/soda3/transport` | Reads a non-negative integer `content-length` header when one is present. |
+| `redactedUrl` | `@nyc-transit-kit/soda3/transport` | Redacts key, token, and secret query parameters for safe output. |
+| `fetchHttpClientLayer` | `@nyc-transit-kit/soda3/transport` | Builds an Effect HTTP client layer from `globalThis.fetch` or a custom fetch implementation. |
 | `soqlSelectAll` | `@nyc-transit-kit/soda3/soql` | `"SELECT *"`. |
 | `soqlLimit` | `@nyc-transit-kit/soda3/soql` | Adds a validated `LIMIT`. |
 | `soqlIdentifier` | `@nyc-transit-kit/soda3/soql` | Validates a column/expression identifier before interpolating it into query text. |
@@ -219,11 +223,8 @@ helpers. MTA Open Data access delegates through SODA3.
 | `@nyc-transit-kit/mta/gtfs-static` | GTFS static fetch/probe operations and `MtaHttpLive`. |
 | `@nyc-transit-kit/mta/gtfs-realtime` | GTFS realtime probe operation and decoder service. |
 | `@nyc-transit-kit/mta/feeds` | MTA direct feed descriptors and lookup helpers. |
-| `@nyc-transit-kit/mta/json-direct` | Raw JSON direct-feed fetch helper for service-alert, elevator/escalator, and Bus Time surfaces. |
-| `@nyc-transit-kit/mta/open-data` | MTA Open Data SODA3-backed query helper. |
-| `@nyc-transit-kit/mta/open-data-catalog` | MTA Open Data catalog row decoder. |
-| `@nyc-transit-kit/mta/elevator-escalator` | Elevator/escalator current JSON row decoder. |
-| `@nyc-transit-kit/mta/datasets` | MTA Open Data descriptors and lookup helpers. |
+| `@nyc-transit-kit/mta/json-direct` | Raw JSON direct-feed fetch helper plus elevator/escalator current row decoder. |
+| `@nyc-transit-kit/mta/open-data` | MTA Open Data descriptors, lookup helpers, SODA3 query helper, and catalog row decoder. |
 | `@nyc-transit-kit/mta/errors` | MTA typed errors and `isMtaError`. |
 
 Important exports include `MtaClientConfig`, `mtaConfigLayer`, `mtaFetchLayer`,
@@ -342,8 +343,8 @@ Selected MTA adapters decode provider DTO fragments without adding downstream
 analytics or normalized business meaning.
 
 ```ts
-import { decodeMtaOpenDataCatalogRow } from "@nyc-transit-kit/mta/open-data-catalog"
-import { decodeMtaElevatorEscalatorCurrent } from "@nyc-transit-kit/mta/elevator-escalator"
+import { decodeMtaOpenDataCatalogRow } from "@nyc-transit-kit/mta/open-data"
+import { decodeMtaElevatorEscalatorCurrent } from "@nyc-transit-kit/mta/json-direct"
 import * as Effect from "effect/Effect"
 
 const program = Effect.gen(function* () {
@@ -374,30 +375,23 @@ catalog helpers, and SODA3-backed dataset query/export helpers.
 | Import path | Purpose |
 | --- | --- |
 | `@nyc-transit-kit/nyc-open-data` | Convenience root for the main NYC Open Data surface. |
-| `@nyc-transit-kit/nyc-open-data/client` | `exportNycOpenDataDataset` and client re-export of query. |
-| `@nyc-transit-kit/nyc-open-data/query` | `queryNycOpenDataDataset`. |
-| `@nyc-transit-kit/nyc-open-data/catalog` | `searchNycOpenDataCatalog`. |
+| `@nyc-transit-kit/nyc-open-data/client` | Query, export, and catalog helpers. |
 | `@nyc-transit-kit/nyc-open-data/descriptors` | Domain/default descriptor constants and lookup helpers. |
-| `@nyc-transit-kit/nyc-open-data/datasets` | Descriptor lookup re-exports. |
 
 Important exports include `queryNycOpenDataDataset`,
 `exportNycOpenDataDataset`, `searchNycOpenDataCatalog`, `defaultDomain`,
-`knownNycOpenDataDatasets`, `findNycOpenDataDataset`,
-`busLanesLocalStreetsDescriptor`, `dotTrafficSpeedsDescriptor`, and
-`trafficVolumeCountsDescriptor`.
+`knownNycOpenDataDatasets`, and `findNycOpenDataDataset`.
 
 `knownNycOpenDataDatasets` and `findNycOpenDataDataset` are reserved for curated
 NYC Open Data descriptors not already owned by a narrower provider package.
 DOT datasets hosted on NYC Open Data live under `@nyc-transit-kit/nyc-dot`.
 Generic NYC Open Data query and export helpers still accept any Socrata dataset
 id on `data.cityofnewyork.us`.
-The DOT descriptor constants remain as deprecated compatibility aliases; new code
-should use `@nyc-transit-kit/nyc-dot/datasets`.
 
 NYC Open Data query with injected SODA3 fetch:
 
 ```ts
-import { queryNycOpenDataDataset } from "@nyc-transit-kit/nyc-open-data/query"
+import { queryNycOpenDataDataset } from "@nyc-transit-kit/nyc-open-data/client"
 import { soda3Layer, type FetchImplementation } from "@nyc-transit-kit/soda3/client"
 import * as Effect from "effect/Effect"
 
@@ -417,12 +411,8 @@ thin SODA3-backed query/export adapters.
 | Import path | Purpose |
 | --- | --- |
 | `@nyc-transit-kit/nyc-dot` | Convenience root for the main NYC DOT surface. |
-| `@nyc-transit-kit/nyc-dot/client` | `queryNycDotDataset` and `exportNycDotDataset`. |
-| `@nyc-transit-kit/nyc-dot/datasets` | Dataset descriptors and lookup helpers. |
-| `@nyc-transit-kit/nyc-dot/bus-lanes` | `decodeBusLaneRow`. |
-| `@nyc-transit-kit/nyc-dot/traffic-speeds` | `decodeTrafficSpeedRow`. |
-| `@nyc-transit-kit/nyc-dot/traffic-volume` | `decodeTrafficVolumeRow`. |
-| `@nyc-transit-kit/nyc-dot/errors` | `UnsupportedDatasetError` and `isUnsupportedDatasetError`. |
+| `@nyc-transit-kit/nyc-dot/datasets` | Dataset descriptors, lookup helpers, query/export helpers, and typed unsupported-dataset errors. |
+| `@nyc-transit-kit/nyc-dot/rows` | Selected NYC DOT row DTO decoders. |
 
 Important exports include `queryNycDotDataset`, `exportNycDotDataset`,
 `nycDotDatasets`, `initialDatasetIds`, `nycDotOpenDataDomain`,
@@ -439,7 +429,7 @@ exports unless they get curated row DTO adapters.
 NYC DOT query by dataset name:
 
 ```ts
-import { queryNycDotDataset } from "@nyc-transit-kit/nyc-dot/client"
+import { queryNycDotDataset } from "@nyc-transit-kit/nyc-dot/datasets"
 import { Soda3ClientConfig, Soda3HttpLive } from "@nyc-transit-kit/soda3/client"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -493,12 +483,12 @@ duplicate endpoint construction, retries, schemas, or provider logic.
 
 | Import path | Purpose |
 | --- | --- |
-| `@nyc-transit-kit/compat` | Convenience root for Promise wrappers. |
-| `@nyc-transit-kit/compat/soda3` | `querySoda3Rows`, `queryAllSoda3Rows`, `countSoda3Rows`, `fetchSoda3DatasetMetadata`, `exportSoda3Response`, `searchSoda3Catalog`, `Soda3CompatOptions`, SODA3 errors, and `isSoda3ClientError`. |
-| `@nyc-transit-kit/compat/mta` | MTA GTFS static, GTFS realtime, JSON direct, Open Data Promise wrappers, MTA errors, and `isMtaError`. |
+| `@nyc-transit-kit/compat` | Convenience root for Promise wrappers and shared error exports. |
+| `@nyc-transit-kit/compat/soda3` | `querySoda3Rows`, `queryAllSoda3Rows`, `countSoda3Rows`, `fetchSoda3DatasetMetadata`, `exportSoda3Response`, `searchSoda3Catalog`, and `Soda3CompatOptions`. |
+| `@nyc-transit-kit/compat/mta` | MTA GTFS static, GTFS realtime, JSON direct, and Open Data Promise wrappers. |
 | `@nyc-transit-kit/compat/nyc-open-data` | `queryNycOpenDataRows`, `exportNycOpenDataResponse`, `searchNycOpenData`. |
-| `@nyc-transit-kit/compat/nyc-dot` | `queryNycDotRows`, `exportNycDotResponse`, `UnsupportedDatasetError`, and `isUnsupportedDatasetError`. |
-| `@nyc-transit-kit/compat/errors` | Shared native error re-exports, provider-family guards, and `isTransitKitCompatError`. |
+| `@nyc-transit-kit/compat/nyc-dot` | `queryNycDotRows` and `exportNycDotResponse`. |
+| `@nyc-transit-kit/compat/errors` | Shared native error exports, provider-family guards, and `isTransitKitCompatError`. |
 
 Compat means Promise facade over Effect programs. It does not mean SODA2
 compatibility, legacy `/resource/` endpoint compatibility, or protocol

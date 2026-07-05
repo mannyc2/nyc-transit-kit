@@ -4,14 +4,19 @@ import {
   type Soda3Row
 } from "@nyc-transit-kit/contracts/soda3"
 import * as Effect from "effect/Effect"
-import * as Schema from "effect/Schema"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
+import { Soda3ClientConfig } from "./client"
 import { buildQueryUrl, decodeSoda3QueryRequest } from "./endpoints"
 import { InvalidInputError, ProviderContractError } from "./errors"
-import { toQueryBody } from "./internal/bodies"
-import { decodeJson, decodeQueryResponse } from "./internal/responses"
-import { Soda3ClientConfig } from "./internal/services"
-import { addHeaders, executeRequest, requestWithPolicy } from "./internal/transport"
+import { decodeInput } from "./internal/decode"
+import {
+  addHeaders,
+  decodeJson,
+  decodeQueryResponse,
+  executeRequest,
+  requestWithPolicy,
+  toQueryBody
+} from "./internal/transport"
 
 export type { Soda3QueryRequestInput }
 
@@ -28,14 +33,15 @@ export type Soda3CountRowsInput = {
 }
 
 const decodeHelperPositiveInteger = (name: string, value: number) =>
-  Schema.decodeUnknownEffect(PositiveInteger)(value).pipe(
-    Effect.catchTag("SchemaError", (error) =>
-      Effect.fail(
-        InvalidInputError.make({
-          operation: "query",
-          message: `Invalid ${name}: ${error.message}`
-        })
-      )
+  decodeInput(
+    "query",
+    PositiveInteger
+  )(value).pipe(
+    Effect.mapError((error) =>
+      InvalidInputError.make({
+        operation: "query",
+        message: `Invalid ${name}: ${error.message}`
+      })
     )
   )
 

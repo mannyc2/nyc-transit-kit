@@ -25,7 +25,7 @@ beta; see the [compatibility matrix](docs/getting-started.md#compatibility)
 before installing into an existing Effect app.
 
 ```sh
-bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.1.4
+bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.2.0
 bun add @nyc-transit-kit/mta @nyc-transit-kit/nyc-dot @nyc-transit-kit/compat
 ```
 

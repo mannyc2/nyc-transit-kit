@@ -10,7 +10,7 @@ uses SODA3 query/export endpoints only.
 
 ```ts
 import { queryNycOpenDataDataset } from "@nyc-transit-kit/nyc-open-data/client"
-import { searchNycOpenDataCatalog } from "@nyc-transit-kit/nyc-open-data/catalog"
+import { searchNycOpenDataCatalog } from "@nyc-transit-kit/nyc-open-data/client"
 ```
 
 Prefer subpaths for provider helpers and descriptor lookup.

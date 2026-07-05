@@ -1,12 +1,16 @@
 import * as Schema from "effect/Schema"
-import { makeDescriptorRegistry } from "../packages/contracts/src/descriptor-registry"
-import type { DatasetDescriptorAdapterStatus } from "../packages/contracts/src/metadata"
+import type {
+  DatasetDescriptorAdapterStatus,
+  NycDotDatasetDescriptorInput,
+  NycOpenDataDatasetDescriptorInput
+} from "../packages/contracts/src/descriptors"
+import {
+  makeDescriptorRegistry,
+  NycDotDatasetDescriptor,
+  NycOpenDataDatasetDescriptor
+} from "../packages/contracts/src/descriptors"
 import type { MtaOpenDataDatasetDescriptorInput } from "../packages/contracts/src/mta"
 import { MtaOpenDataDatasetDescriptor } from "../packages/contracts/src/mta"
-import type { NycDotDatasetDescriptorInput } from "../packages/contracts/src/nyc-dot"
-import { NycDotDatasetDescriptor } from "../packages/contracts/src/nyc-dot"
-import type { NycOpenDataDatasetDescriptorInput } from "../packages/contracts/src/nyc-open-data"
-import { NycOpenDataDatasetDescriptor } from "../packages/contracts/src/nyc-open-data"
 import {
   catalogResource,
   type DescriptorProvider,
@@ -396,7 +400,7 @@ export const prepareNycOpenData = (input: ReadonlyArray<unknown>) =>
     decodeDescriptor: Schema.decodeUnknownSync(NycOpenDataDatasetDescriptor),
     targetPath: nycOpenDataTarget,
     typeName: "NycOpenDataDatasetDescriptorInput",
-    importPath: "@nyc-transit-kit/contracts/nyc-open-data",
+    importPath: "@nyc-transit-kit/contracts/descriptors",
     exportName: "nycOpenDataDescriptorRecords",
     formatRecord: formatNycOpenDataRecord
   })
@@ -409,7 +413,7 @@ export const prepareNycDot = (input: ReadonlyArray<unknown>) =>
     lookupKeys: (descriptor) => [String(descriptor.name)],
     targetPath: nycDotTarget,
     typeName: "NycDotDatasetDescriptorInput",
-    importPath: "@nyc-transit-kit/contracts/nyc-dot",
+    importPath: "@nyc-transit-kit/contracts/descriptors",
     exportName: "nycDotDescriptorRecords",
     formatRecord: formatNycDotRecord
   })

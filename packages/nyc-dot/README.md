@@ -10,7 +10,7 @@ helpers.
 ## Import Paths
 
 ```ts
-import { queryNycDotDataset } from "@nyc-transit-kit/nyc-dot/client"
+import { queryNycDotDataset } from "@nyc-transit-kit/nyc-dot/datasets"
 import { findNycDotDataset } from "@nyc-transit-kit/nyc-dot/datasets"
 ```
 

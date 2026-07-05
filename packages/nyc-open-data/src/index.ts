@@ -1,12 +1,11 @@
 export const packageName = "@nyc-transit-kit/nyc-open-data"
-export { searchNycOpenDataCatalog } from "./catalog"
-export { exportNycOpenDataDataset } from "./client"
 export {
-  busLanesLocalStreetsDescriptor,
+  exportNycOpenDataDataset,
+  queryNycOpenDataDataset,
+  searchNycOpenDataCatalog
+} from "./client"
+export {
   defaultDomain,
-  dotTrafficSpeedsDescriptor,
   findNycOpenDataDataset,
-  knownNycOpenDataDatasets,
-  trafficVolumeCountsDescriptor
+  knownNycOpenDataDatasets
 } from "./descriptors"
-export { queryNycOpenDataDataset } from "./query"

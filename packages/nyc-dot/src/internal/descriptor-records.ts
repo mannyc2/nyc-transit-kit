@@ -1,4 +1,4 @@
-import type { NycDotDatasetDescriptorInput } from "@nyc-transit-kit/contracts/nyc-dot"
+import type { NycDotDatasetDescriptorInput } from "@nyc-transit-kit/contracts/descriptors"
 
 export const nycDotDescriptorRecords = [
   {
