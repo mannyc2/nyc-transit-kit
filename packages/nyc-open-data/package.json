@@ -1,29 +1,30 @@
 {
   "name": "@nyc-transit-kit/nyc-open-data",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/client.ts",
-    "./descriptors": "./src/descriptors.ts"
+    "./NycDot": "./src/NycDot.ts",
+    "./NycOpenData": "./src/NycOpenData.ts"
   },
   "types": "./src/index.ts",
   "files": [
     "README.md",
     "src"
   ],
-  "scripts": {
-    "build": "tsc -b",
-    "test": "bun test ./test"
-  },
   "dependencies": {
-    "@nyc-transit-kit/contracts": "0.2.0",
-    "@nyc-transit-kit/soda3": "0.2.0",
-    "effect": "catalog:"
+    "@nyc-transit-kit/soda3": "0.3.0"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.6"
+  },
+  "devDependencies": {
+    "@nyc-transit-kit/fixtures": "0.3.0",
+    "effect": "catalog:"
   }
 }

@@ -5,7 +5,7 @@ import {
   isRecord,
   parseCoverageProvider,
   requiredArgValue
-} from "./provider-descriptor-shared"
+} from "./provider-coverage-shared"
 
 type CliConfig = {
   readonly manifestPath: string

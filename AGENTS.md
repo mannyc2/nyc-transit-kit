@@ -1,38 +1,48 @@
 # Agent Guide
 
-This repository is `nyc-transit-kit`, an Effect-native Bun monorepo for official
-NYC and MTA transit data APIs.
+`nyc-transit-kit` is an Effect-native Bun monorepo for official NYC and MTA
+transit data. The standing decisions are in `SPEC.md`; read it first.
 
-## Core Rules
+## Layout
 
-- Keep all Effect packages on the Effect 4 beta line. Current pinned versions:
-  `effect@4.0.0-beta.92` and `@effect/platform-bun@4.0.0-beta.92`.
-- Do not install `@effect/cli@0.75.2`; it peers the Effect 3 line. Add
-  `@effect/cli` only when a release compatible with Effect 4 beta is available.
-- Use Bun for package management, scripts, tests, and binary builds.
-- Keep package boundaries organized by official API/provider family.
-- Keep Socrata-backed access SODA3-only. Do not add SODA2 helpers, `/resource/`
-  endpoint builders, fallback paths, or compatibility aliases.
-- Core packages must receive explicit config and must not read `process.env`.
-- `packages/cli` is the only package allowed to read CLI environment variables.
-- Publishable source manifests may use `catalog:` only for approved third-party
-  dependencies listed in the root Bun catalog. Packed and published manifests
-  must not contain `workspace:`, `catalog:`, `file:`, local path specs, or
-  private absolute paths. Internal `@nyc-transit-kit/*` dependencies must remain
-  literal release versions unless a separate release/versioning plan changes
-  that rule.
-- Optimize package APIs for tree shaking. Prefer narrow subpath exports and
-  internal subpath imports over package-root barrels. Keep public APIs as
-  standalone functions or typed services, avoid method-bag namespace exports,
-  and use deep Effect module imports when they are available in the pinned
-  Effect 4 beta release.
-- Keep `@effect/language-service` as root-only developer tooling. It is versioned
-  separately from Effect runtime packages, is wired through `tsconfig.base.json`,
-  and is patched into workspace TypeScript by the root prepare script.
+- `apps/cli` is the `ntk` binary, the one thing that deploys.
+- `packages/` are libraries, one per provider: `soda3` (Socrata on any domain),
+  `mta`, `nyc-open-data` (NYC DOT included) and `fixtures` (real samples and
+  the HTTP test layer).
+- A module is a PascalCase file (`Soda3Client.ts`), imported as a namespace.
+  Its test is `test/<Module>.test.ts`.
 
-## Verification
+## Rules
 
-Run these before handing off implementation work:
+- Effect is 4.0.6 stable. The installed `node_modules/effect` is the API
+  authority: read `node_modules/effect/AGENTS.md` and the declarations before
+  using an API. There is no vendored Effect checkout.
+- Libraries peer `effect` at `^4.0.6`. The CLI pins `effect` and
+  `@effect/platform-bun` through the root catalog.
+- Use Bun for installs, scripts, tests and builds.
+- Socrata access is SODA3 only: no SODA2 helpers, `/resource/` URLs, fallbacks
+  or aliases. Build SoQL with `Soql` fragments; values become SoQL literals.
+- Libraries take values. No `process.env`, `Config` or `ConfigProvider` outside
+  `apps/cli`, and no retries or timeouts inside a library.
+- Each workspace depends only on the packages below it; see
+  `allowedInternalDependencies` in `tests/architecture/helpers.ts`.
+- Every module of a package is a subpath export. Import sibling packages by
+  subpath and Effect by module (`effect/Effect`, never `effect`).
+- Test samples are real responses in `packages/fixtures`; never hand-write one.
+  Fakes refuse what the provider refuses. Test HTTP with `HttpTest.layer` and
+  time with `TestClock`. Mutation-check each fix.
+- Record what a live request taught you about a provider in
+  `docs/official-api-map.md`, with the date.
+- Downstream product logic stays out; see `docs/product-boundary.md`.
+- Packed manifests contain no `workspace:`, `catalog:`, `file:` or local paths.
+  Internal dependencies are literal release versions.
+- `@effect/language-service` is root-only tooling; `bun install` patches it into
+  TypeScript.
+- `tools/release` is a standalone package with its own lockfile, so the release
+  runner can stay on the Effect beta that `ts-release` 0.0.7 needs. Keep it out
+  of the workspace until `ts-release` is upgraded.
+
+## Verify Before Handing Off
 
 ```sh
 bun install
@@ -41,20 +51,6 @@ bun run build:cli
 ./dist/ntk --version --json
 ```
 
-Use `bun test <path>` for focused TDD loops.
-
-Release staging checks such as `bun run release:prepare:npm` and
-`bun run check:npm-stage` may contact npm while packing or validating staged
-archives; keep them in release verification, not in the default inner loop.
-
-## Implementation Order
-
-Follow the planned shape in `SPEC.md` and `docs/implementation-plan.md`:
-
-1. Contracts with `effect/Schema`.
-2. Generic SODA3 client.
-3. Provider packages that delegate Socrata-backed access through SODA3.
-4. CLI and Promise compat wrappers.
-
-Do not move downstream product analytics, route scoring, detector logic, route
-briefs, hosted pipelines, or app-specific UI into this repository.
+Use `bun --bun vitest run <path>` for focused loops. Release staging
+(`bun run release:prepare:npm`, `bun run check:npm-stage`) may contact npm; run
+it for releases, not in the inner loop.

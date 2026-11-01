@@ -1,10 +1,10 @@
 {
   "identity": {
     "name": "nyc-transit-kit",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "commit": "HEAD",
-    "tag": "v0.2.0",
-    "notes": "Surface-compression release that keeps the eight package boundaries and CLI JSON schema stable while narrowing compatibility aliases and public subpaths."
+    "tag": "v0.3.0",
+    "notes": "Effect 4.0.6 stable redesign: apps/ and packages/, provider modules with PascalCase names, SoQL built on effect/sql Statement with values written as SoQL literals, tests on @effect/vitest with TestClock and an HttpClient test layer, CLI JSON schema 0.2.0. NYC DOT moves into @nyc-transit-kit/nyc-open-data and the row schemas of @nyc-transit-kit/contracts move into their provider modules, so neither package is released again. Drops the Promise compat package."
   },
   "artifacts": [
     {
@@ -12,18 +12,6 @@
       "path": ".release/npm/cli",
       "format": "directory",
       "consumers": ["npm-cli"]
-    },
-    {
-      "id": "npm-compat",
-      "path": ".release/npm/compat",
-      "format": "directory",
-      "consumers": ["npm-compat"]
-    },
-    {
-      "id": "npm-contracts",
-      "path": ".release/npm/contracts",
-      "format": "directory",
-      "consumers": ["npm-contracts"]
     },
     {
       "id": "npm-fixtures",
@@ -36,12 +24,6 @@
       "path": ".release/npm/mta",
       "format": "directory",
       "consumers": ["npm-mta"]
-    },
-    {
-      "id": "npm-nyc-dot",
-      "path": ".release/npm/nyc-dot",
-      "format": "directory",
-      "consumers": ["npm-nyc-dot"]
     },
     {
       "id": "npm-nyc-open-data",
@@ -69,72 +51,36 @@
     },
     {
       "id": "github-cli-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-cli-0.2.0.tgz",
-      "format": "tarball",
-      "consumers": ["github"]
-    },
-    {
-      "id": "github-compat-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-compat-0.2.0.tgz",
-      "format": "tarball",
-      "consumers": ["github"]
-    },
-    {
-      "id": "github-contracts-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-contracts-0.2.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-cli-0.3.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-fixtures-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-fixtures-0.2.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-fixtures-0.3.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-mta-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-mta-0.2.0.tgz",
-      "format": "tarball",
-      "consumers": ["github"]
-    },
-    {
-      "id": "github-nyc-dot-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-nyc-dot-0.2.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-mta-0.3.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-nyc-open-data-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-nyc-open-data-0.2.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-nyc-open-data-0.3.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-soda3-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-soda3-0.2.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-soda3-0.3.0.tgz",
       "format": "tarball",
       "consumers": ["github"]
     }
   ],
   "targets": [
-    {
-      "_tag": "NpmRegistryTarget",
-      "id": "npm-contracts",
-      "registry": "https://registry.npmjs.org",
-      "packageName": "@nyc-transit-kit/contracts",
-      "packagePath": ".release/npm/contracts",
-      "access": "public",
-      "dryRunSupport": "native",
-      "mutability": "immutable",
-      "recovery": "publish-new-version",
-      "trustedPublishing": {
-        "provider": "github-actions",
-        "workflow": "release.yml",
-        "packageExists": true,
-        "verifyPackageExists": true
-      },
-      "provenance": true
-    },
     {
       "_tag": "NpmRegistryTarget",
       "id": "npm-fixtures",
@@ -191,46 +137,10 @@
     },
     {
       "_tag": "NpmRegistryTarget",
-      "id": "npm-nyc-dot",
-      "registry": "https://registry.npmjs.org",
-      "packageName": "@nyc-transit-kit/nyc-dot",
-      "packagePath": ".release/npm/nyc-dot",
-      "access": "public",
-      "dryRunSupport": "native",
-      "mutability": "immutable",
-      "recovery": "publish-new-version",
-      "trustedPublishing": {
-        "provider": "github-actions",
-        "workflow": "release.yml",
-        "packageExists": true,
-        "verifyPackageExists": true
-      },
-      "provenance": true
-    },
-    {
-      "_tag": "NpmRegistryTarget",
       "id": "npm-nyc-open-data",
       "registry": "https://registry.npmjs.org",
       "packageName": "@nyc-transit-kit/nyc-open-data",
       "packagePath": ".release/npm/nyc-open-data",
-      "access": "public",
-      "dryRunSupport": "native",
-      "mutability": "immutable",
-      "recovery": "publish-new-version",
-      "trustedPublishing": {
-        "provider": "github-actions",
-        "workflow": "release.yml",
-        "packageExists": true,
-        "verifyPackageExists": true
-      },
-      "provenance": true
-    },
-    {
-      "_tag": "NpmRegistryTarget",
-      "id": "npm-compat",
-      "registry": "https://registry.npmjs.org",
-      "packageName": "@nyc-transit-kit/compat",
-      "packagePath": ".release/npm/compat",
       "access": "public",
       "dryRunSupport": "native",
       "mutability": "immutable",

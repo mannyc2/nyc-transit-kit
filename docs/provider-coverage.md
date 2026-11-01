@@ -1,108 +1,73 @@
 # Provider Coverage
 
-This document defines what "complete coverage" means for `nyc-transit-kit`.
-It separates generic access from curated descriptors and typed adapters so the
-release promise stays useful without turning the repository into a full catalog
-mirror.
+What the kit reaches, what it curates, and how the curated lists are checked
+against the providers' own catalogs.
 
 ## Coverage Types
 
-- **Generic coverage**: a user can reach a provider API surface by supplying an
-  id, URL, query, or feed descriptor. For Socrata-backed data, SODA3
-  query/export/catalog works for any supported public dataset id on the
-  configured domain.
-- **Curated descriptor coverage**: the repo ships provider-owned descriptors
-  with stable ids, names, descriptions, and lookup helpers.
-- **Descriptor metadata**: curated descriptors may include `sourceUrl`, `tags`,
-  `temporalFields`, `adapterStatus`, and `lastVerified` to document provenance,
-  discoverability, known temporal columns, adapter depth, and local verification
-  date.
-- **Typed adapter coverage**: the repo ships row schemas or normalized response
-  schemas for a specific dataset or API.
-- **Direct feed coverage**: the repo ships descriptors for official non-Socrata
-  feeds such as MTA GTFS static and GTFS Realtime endpoints.
-- **Complete provider coverage**: every official surface in the chosen scope has
-  at least generic or direct feed coverage, and every curated scope has an
-  offline coverage check that reports missing and extra entries.
+- **Generic coverage**: any public dataset by domain and id.
+  `@nyc-transit-kit/soda3` queries, exports and searches every public SODA3
+  dataset on any Socrata domain, and so do the CLI's `socrata` and `catalog`
+  commands.
+- **Curated datasets**: a provider package names a dataset and ships the schema
+  of its rows, as a `Dataset<Row>`. Queries decode rows against it.
+- **Direct feeds**: official feeds outside Socrata, by name: GTFS static zips,
+  GTFS-realtime, elevator and escalator JSON, and Bus Time.
+- **Typed rows**: the schemas behind curated datasets and JSON feeds, each
+  checked against real responses in `@nyc-transit-kit/fixtures`. They describe
+  the provider's own columns and add no meaning of their own: no severity,
+  reliability, route impact or scores.
 
-## v0 Matrix
+## Matrix
 
-| Provider family | Generic coverage | Curated descriptors | Typed adapters | Direct feeds |
+| Provider | Generic | Curated | Typed rows | Direct feeds |
 | --- | --- | --- | --- | --- |
-| SODA3 | yes | no | response fragments only | no |
-| NYC Open Data | yes | policy-scoped | selected | no |
-| NYC DOT | via NYC Open Data | DOT-scoped | selected | no |
-| MTA Open Data | via data.ny.gov | MTA catalog | selected | no |
-| MTA Direct | URL/feed-based | feed descriptors | GTFS-RT summary and selected JSON rows | yes |
-
-## v0 Scope
-
-- `soda3`: generic coverage for any public Socrata SODA3 dataset on a caller
-  supplied domain.
-- `nyc-open-data`: generic coverage for `data.cityofnewyork.us`; curated
-  descriptors only for transit, transportation, or provider-family datasets
-  selected by policy.
-- `nyc-dot`: curated descriptor coverage for DOT datasets surfaced through NYC
-  Open Data or DOT's official data page.
-- `mta-open-data`: curated descriptor coverage for published MTA Open Data
-  Catalog entries with real four-by-four Socrata ids.
-- `mta-direct`: direct feed coverage for official MTA GTFS static, GTFS-RT,
-  service alert, elevator/escalator, and Bus Time surfaces. Typed adapters can
-  lag behind direct feed descriptors.
+| Any Socrata domain | SODA3 query and export, Discovery search | none | catalog results, error bodies | none |
+| NYC Open Data, `data.cityofnewyork.us` | yes | none outside DOT | none | none |
+| NYC DOT | through NYC Open Data | bus lanes, traffic speeds, traffic volume counts | all three | none |
+| MTA Open Data, `data.ny.gov` | yes | the MTA Open Data Catalog | the catalog's rows | none |
+| MTA direct | by feed name or URL | GTFS static, GTFS-realtime, elevator and escalator, and Bus Time feeds | FeedMessage summaries, elevator outages and equipment | yes |
 
 ## Curated Scope
 
-The first complete curated scope is:
+The curated scope the kit aims at:
 
-1. MTA Open Data: all rows from `f462-ka72` where the dataset is published and
-   the Open Dataset ID is a real Socrata four-by-four id.
-2. NYC DOT: all datasets attributable to Department of Transportation from NYC
-   Open Data, plus DOT data page items that resolve to Socrata datasets.
-3. NYC Open Data: generic full-domain access, with curated descriptors only for
-   transit or transportation datasets that are not already owned by DOT or MTA
-   provider packages.
+1. MTA Open Data: every published row of the MTA Open Data Catalog
+   (`f462-ka72`) with a real Socrata id.
+2. NYC DOT: every NYC Open Data dataset attributed to the Department of
+   Transportation.
+3. NYC Open Data: transit and transportation datasets that DOT or the MTA do
+   not already own.
 
-Source counts are not hand-maintained in docs. Use
-`scripts/check-provider-coverage.ts` with local official-source snapshots; its
-JSON output is the source of truth for `expectedCount`, `localCount`,
-`missingIds`, and `extraIds`.
+0.3.0 curates far less than that: the MTA catalog itself and three DOT
+datasets. Generic access reaches the rest. The coverage check reports the gap
+as `missingIds`. Counts are never kept by hand in docs.
 
-Descriptor metadata does not replace the offline coverage check. It documents
-the curated local record and is preserved by
-`scripts/update-descriptor-records.ts` when present in input records.
+A dataset joins a curated list only with its row schema and a real sample in
+`@nyc-transit-kit/fixtures` that the schema decodes.
+
+## Checking Coverage
+
+`scripts/check-provider-coverage.ts` compares a local snapshot of a provider's
+official list with the kit's list. It is offline: it never contacts a provider
+and does not check that feeds are live.
 
 ```sh
 bun run scripts/check-provider-coverage.ts --provider nyc-dot --input ./tmp/dot-source.json
 ```
 
-Supported providers are `nyc-open-data`, `nyc-dot`, `mta-open-data`, and
-`mta-direct`. For `mta-direct`, pass a normalized offline snapshot of direct
-feed objects with `id` and `url` fields; the check compares IDs only. The
-script is offline by default, never contacts provider endpoints, and does not
-validate direct-feed endpoint liveness.
-
-## Selected Adapter Policy
-
-Generic access remains broad. Typed adapters are curated and should land only
-when a tiny public or synthetic fixture proves the provider DTO shape.
-
-The first MTA Open Data typed adapter decodes MTA Open Data Catalog rows from
-dataset `f462-ka72`. The first MTA JSON direct typed adapter decodes rows from
-the elevator/escalator current JSON feed. These adapters are row-schema depth;
-they do not normalize outage severity, reliability, route impact, scores, or
-other downstream product meaning.
-
-Descriptor `adapterStatus` values must match the implemented depth:
-
-- `"none"` means no package decoder exists.
-- `"row-schema"` means the package validates source DTO rows or row arrays.
-- `"normalized"` is reserved for deliberate provider-independent DTOs.
+Providers are `nyc-open-data`, `nyc-dot`, `mta-open-data` and `mta-direct`. A
+Socrata snapshot can be Discovery results or catalog rows; ids are read from
+`resource.id`, `id`, `open_dataset_id` and similar fields, and anything that is
+not a four-by-four Socrata id, such as a planned MTA dataset's number, is
+skipped. For `mta-direct`, pass feed objects with `id` and `url`. Only ids are
+compared.
 
 ## Release Ritual
 
-Provider coverage release evidence is generated from local official-source
-snapshots. Keep snapshots outside version control, for example under
-`./tmp/provider-snapshots`, and create a manifest like this:
+Release evidence comes from local snapshots of the official sources. Keep the
+snapshots out of version control, for example under `./tmp/provider-snapshots`,
+and list them in a manifest:
 
 ```json
 {
@@ -119,26 +84,24 @@ snapshots. Keep snapshots outside version control, for example under
 }
 ```
 
-Run the set-level checker:
+Run the set-level check:
 
 ```sh
 bun run check:provider-coverage -- --manifest ./tmp/provider-snapshots/manifest.json --out .release/evidence/provider-coverage.json
 ```
 
-The evidence file reports one entry per provider:
+The evidence file has one entry per provider:
 
-- `missingIds`: official snapshot IDs not represented locally.
-- `extraIds`: local curated IDs not present in the snapshot.
-- `ok`: `true` only when both arrays are empty.
+- `missingIds`: ids in the snapshot that the kit does not curate.
+- `extraIds`: ids the kit curates that the snapshot lacks.
+- `ok`: `true` only when both lists are empty.
 
-The snapshots are evidence inputs, not committed source of truth. Review
-`.release/evidence/provider-coverage.json` whenever curated provider scopes
-change.
+Review `.release/evidence/provider-coverage.json` whenever a curated list
+changes.
 
 ## Rejected For v0
 
-Curating 100% of all NYC Open Data datasets as source constants is not the v0
-default. That would turn this toolkit into a citywide catalog mirror. The v0
-release target is 100% generic access for supported Socrata domains, targeted
-curated descriptor coverage for transit/provider families, and offline coverage
-checks for every curated scope.
+Curating every NYC Open Data dataset as source constants. That would turn the
+kit into a citywide catalog mirror. The target is generic access to every
+supported Socrata domain, curated datasets for transit and provider families,
+and an offline coverage check for every curated scope.

@@ -1,35 +1,35 @@
 {
   "name": "@nyc-transit-kit/mta",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/client.ts",
-    "./errors": "./src/errors.ts",
-    "./feeds": "./src/feeds.ts",
-    "./gtfs-realtime": "./src/gtfs-realtime.ts",
-    "./gtfs-static": "./src/gtfs-static.ts",
-    "./json-direct": "./src/json-direct.ts",
-    "./open-data": "./src/open-data.ts"
+    "./BusTime": "./src/BusTime.ts",
+    "./ElevatorEscalator": "./src/ElevatorEscalator.ts",
+    "./GtfsRealtime": "./src/GtfsRealtime.ts",
+    "./GtfsStatic": "./src/GtfsStatic.ts",
+    "./MtaOpenData": "./src/MtaOpenData.ts"
   },
   "types": "./src/index.ts",
   "files": [
     "README.md",
     "src"
   ],
-  "scripts": {
-    "build": "tsc -b",
-    "test": "bun test ./test"
-  },
   "dependencies": {
-    "@nyc-transit-kit/contracts": "0.2.0",
-    "@nyc-transit-kit/soda3": "0.2.0",
-    "effect": "catalog:",
+    "@nyc-transit-kit/soda3": "0.3.0",
     "gtfs-realtime-bindings": "catalog:"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.6"
+  },
+  "devDependencies": {
+    "@effect/platform-bun": "catalog:",
+    "@nyc-transit-kit/fixtures": "0.3.0",
+    "effect": "catalog:"
   }
 }

@@ -1,35 +1,30 @@
 {
   "name": "@nyc-transit-kit/soda3",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./catalog": "./src/catalog.ts",
-    "./client": "./src/client.ts",
-    "./endpoints": "./src/endpoints.ts",
-    "./errors": "./src/errors.ts",
-    "./export": "./src/export.ts",
-    "./metadata": "./src/metadata.ts",
-    "./query": "./src/query.ts",
-    "./soql": "./src/soql.ts",
-    "./transport": "./src/transport.ts"
+    "./Dataset": "./src/Dataset.ts",
+    "./Discovery": "./src/Discovery.ts",
+    "./Socrata": "./src/Socrata.ts",
+    "./Soda3Client": "./src/Soda3Client.ts",
+    "./Soql": "./src/Soql.ts"
   },
   "types": "./src/index.ts",
   "files": [
     "README.md",
     "src"
   ],
-  "scripts": {
-    "build": "tsc -b",
-    "test": "bun test ./test"
-  },
-  "dependencies": {
-    "@nyc-transit-kit/contracts": "0.2.0",
-    "effect": "catalog:"
-  },
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.6"
+  },
+  "devDependencies": {
+    "@nyc-transit-kit/fixtures": "0.3.0",
+    "effect": "catalog:"
   }
 }

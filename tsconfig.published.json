@@ -1,0 +1,14 @@
+{
+  // Published packages ship TypeScript source, so a consumer's compiler checks it
+  // with the consumer's settings. These are the strictest such settings, with no
+  // Bun or Node types: a published module may rely on web globals and Effect only.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": [],
+    "isolatedModules": true,
+    "noPropertyAccessFromIndexSignature": true
+  },
+  "include": ["apps/cli/src", "packages/*/src"],
+  "exclude": ["apps/cli/src/bin.ts"]
+}

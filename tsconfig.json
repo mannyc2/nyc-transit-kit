@@ -1,13 +1,30 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./packages/contracts" },
-    { "path": "./packages/soda3" },
-    { "path": "./packages/mta" },
-    { "path": "./packages/nyc-open-data" },
-    { "path": "./packages/nyc-dot" },
-    { "path": "./packages/cli" },
-    { "path": "./packages/compat" },
-    { "path": "./packages/fixtures" }
+  // One program for the whole repository: apps, packages, their tests and the scripts.
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "types": ["bun"],
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "plugins": [{ "name": "@effect/language-service" }]
+  },
+  "include": [
+    "apps/*/src",
+    "apps/*/scripts",
+    "apps/*/test",
+    "packages/*/src",
+    "packages/*/test",
+    "scripts",
+    "tests",
+    "vitest.config.ts"
   ]
 }

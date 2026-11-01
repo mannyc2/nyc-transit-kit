@@ -1,39 +1,42 @@
 # Product Boundary
 
-Repository name: `nyc-transit-kit`.
-
 `nyc-transit-kit` is a standalone public toolkit for official NYC and MTA
-transit data APIs. Package boundaries are based on official API/provider
-families rather than any downstream application's private modules.
+transit data. Package boundaries follow the official providers, not any
+downstream application's modules.
 
-## Package Structure
+## Apps And Packages
 
-- `packages/contracts`: shared public contracts implemented with `effect/Schema`.
-- `packages/soda3`: generic Socrata SODA3 client helpers.
-- `packages/mta`: official MTA GTFS, GTFS Realtime, and MTA Open Data surfaces.
-- `packages/nyc-open-data`: NYC Open Data catalog and dataset helpers.
-- `packages/nyc-dot`: NYC DOT dataset descriptors and thin adapters.
-- `packages/cli`: curated public CLI built for Bun.
-- `packages/compat`: optional Promise facade over Effect programs.
-- `packages/fixtures`: tiny safe fixtures for tests and examples.
+`apps/` holds what deploys; `packages/` holds the libraries, one per official
+provider.
+
+- `packages/soda3`: Socrata on any domain: SODA3 query and export, the
+  Discovery API, and SoQL.
+- `packages/mta`: MTA GTFS, GTFS-realtime, elevator and escalator, Bus Time,
+  and MTA datasets on NYS Open Data.
+- `packages/nyc-open-data`: the NYC Open Data domain and its curated datasets,
+  NYC DOT's included (`NycDot`).
+- `packages/fixtures`: real response samples and the HTTP test layer.
+- `apps/cli`: the `ntk` CLI, for Bun.
+
+A schema lives in the module of the provider that defines it. `mta` and
+`nyc-open-data` depend on `soda3`, the CLI on all three, and nothing depends on
+the CLI; `tests/architecture` enforces that.
 
 ## API Model
 
-The primary API is Effect-native. Core clients should return `Effect` values,
-use typed errors, validate boundary data with `effect/Schema`, and receive
-configuration explicitly.
+The API is Effect-native. Functions return `Effect` or `Stream` values, fail
+with typed errors, decode provider data with `effect/Schema`, and take
+configuration as arguments or layers. There is no Promise facade: a caller who
+wants Promises runs the program at their own edge with `Effect.runPromise` or a
+`ManagedRuntime`.
 
-Promise compatibility wrappers are optional facades over Effect programs. They
-must not duplicate schemas, retry loops, endpoint construction, or provider
-logic.
+## SODA3 Only
 
-## SODA3-Only Rule
-
-All Socrata-backed access is SODA3-only. The toolkit must not implement legacy
-SODA2 helpers, fallback paths, compatibility aliases, or endpoint builders.
+All Socrata access is SODA3. The toolkit has no SODA2 helpers, `/resource/`
+URLs, fallback paths or compatibility aliases.
 
 ## Out Of Scope
 
-Private downstream product logic is out of scope, including app-specific route
-scoring, detector runs, database projections, route briefs, UI workflows, hosted
-pipelines, and document extraction.
+Downstream product logic stays downstream: route scoring, detector runs,
+database projections, route briefs, UI workflows, hosted pipelines and document
+extraction.

@@ -1,9 +1,9 @@
-import { readdir, stat } from "node:fs/promises"
-import { join } from "node:path"
+import { stat } from "node:fs/promises"
+import { basename, join } from "node:path"
+import { rootPath, workspaceDirectories } from "./workspaces"
 
 type JsonRecord = Record<string, unknown>
 
-const rootPath = new URL("../", import.meta.url).pathname
 const privatePathPatterns: ReadonlyArray<RegExp> = [
   /\/mnt\/models\/dev\//,
   /\/home\/[A-Za-z0-9._-]+\//,
@@ -260,10 +260,7 @@ for (const name of [...tokenEnvNames].toSorted()) {
   }
 }
 
-const packageEntries = await readdir(join(rootPath, "packages"), { withFileTypes: true })
-const packageNames = packageEntries
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => entry.name)
+const packageNames = (await workspaceDirectories()).map((directory) => basename(directory))
 for (const packageName of packageNames) {
   if (!artifactIds.includes(`npm-${packageName}`)) {
     failures.push(`release config is missing npm artifact for ${packageName}`)
