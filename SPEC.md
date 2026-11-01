@@ -25,7 +25,7 @@ apps can depend on without inheriting anyone's product pipeline.
 
 ## Sources
 
-- Socrata access is SODA3 only: `query.json`, `export.{format}` and the Discovery
+- Socrata access is SODA3 only: `query.json`, `export.csv` and the Discovery
   API. No SODA2, no `/resource/` URLs, no fallbacks. An architecture test fails
   on either string.
 - SODA3 query and export refuse requests without an app token, so

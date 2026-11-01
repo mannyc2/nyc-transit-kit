@@ -34,8 +34,10 @@ export const selectFlag = Flag.String("select").pipe(
   )
 )
 
-export const formatFlag = Flag.Literals("format", Soda3Client.ExportFormat.literals).pipe(
-  Flag.withDescription("Export format."),
+// SODA3 refused json and geojson exports with a 406, so csv is the only
+// choice. The flag stays so that 0.2 scripts passing `--format csv` still run.
+export const formatFlag = Flag.Literals("format", ["csv"]).pipe(
+  Flag.withDescription("Export format: csv, the default and the only one SODA3 exports."),
   Flag.withDefault("csv")
 )
 
@@ -66,16 +68,11 @@ export const queryRows = (apiFamily: ApiFamily, ref: DatasetRef, select: string)
     yield* Output.success(apiFamily, { rows })
   })
 
-export const exportRows = (
-  apiFamily: ApiFamily,
-  ref: DatasetRef,
-  format: Soda3Client.ExportFormat,
-  output: string
-) =>
+export const exportRows = (apiFamily: ApiFamily, ref: DatasetRef, output: string) =>
   Effect.gen(function* () {
     const soda = yield* Soda3Client.Soda3Client
-    const [file] = yield* writeFiles([{ path: output, content: soda.export({ ...ref, format }) }])
-    yield* Output.success(apiFamily, { format, ...file })
+    const [file] = yield* writeFiles([{ path: output, content: soda.export(ref) }])
+    yield* Output.success(apiFamily, file)
   })
 
 export const searchCatalog = (
@@ -150,7 +147,7 @@ export const datasetCommands = (options: {
         appToken: appTokenFlag
       },
       (config) =>
-        exportRows(apiFamily, config.ref, config.format, config.output).pipe(
+        exportRows(apiFamily, config.ref, config.output).pipe(
           Effect.provide(Soda3Client.layer({ appToken: config.appToken }))
         )
     ).pipe(Command.withShortDescription(`Export a ${label} dataset to a file.`))

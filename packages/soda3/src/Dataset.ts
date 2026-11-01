@@ -16,7 +16,7 @@ export interface Dataset<
   readonly title: string
   readonly description: string
   readonly row: Row
-  /** The column that orders rows in time, when there is one. */
+  /** The column that orders rows in time, when there is one. `stream` pages in its order. */
   readonly timestampColumn?: string
 }
 
@@ -36,10 +36,15 @@ export const query = Effect.fn("Dataset.query")(function* <
   return yield* Schema.decodeUnknownEffect(Schema.Array(dataset.row))(rows)
 })
 
+const oldestFirst = (dataset: Pick<Dataset, "timestampColumn">): Soql.OrderBy | undefined =>
+  dataset.timestampColumn === undefined ? undefined : { column: dataset.timestampColumn }
+
 /**
- * Every matching row, one page per request, decoded as it arrives. When the
- * dataset changes while you page, order by its `timestampColumn`; see
- * `Soda3Client.streamRows`.
+ * Every matching row, one page per request, decoded as it arrives. Unless
+ * `clauses` give an `orderBy`, rows come oldest first by the dataset's
+ * `timestampColumn`, when it has one, so rows added while you page land after
+ * the pages already read. Unordered, SODA3 served Traffic Speeds newest first
+ * and page 2 repeated page 1; see `Soda3Client.streamRows`.
  */
 export const stream = <Row extends Schema.Codec<unknown, unknown>>(
   dataset: Dataset<Row>,
@@ -47,18 +52,21 @@ export const stream = <Row extends Schema.Codec<unknown, unknown>>(
   pageSize?: number
 ) =>
   Soda3Client.streamRows(
-    { domain: dataset.domain, datasetId: dataset.datasetId, query: Soql.selectAll(clauses) },
+    {
+      domain: dataset.domain,
+      datasetId: dataset.datasetId,
+      query: Soql.selectAll({ ...clauses, orderBy: clauses.orderBy ?? oldestFirst(dataset) })
+    },
     pageSize
   ).pipe(Stream.mapEffect((row) => Schema.decodeUnknownEffect(dataset.row)(row)))
 
-/** The dataset's SODA3 export, as bytes. */
+/** The dataset's SODA3 export as CSV bytes, narrowed by `body.query` when given. */
 export const exportBytes = (
   dataset: DatasetRef,
-  format: Soda3Client.ExportFormat,
-  body: Omit<Soda3Client.ExportRequest, "domain" | "datasetId" | "format"> = {}
+  body: Omit<Soda3Client.ExportRequest, "domain" | "datasetId"> = {}
 ) =>
   Stream.service(Soda3Client.Soda3Client).pipe(
     Stream.flatMap((soda) =>
-      soda.export({ ...body, domain: dataset.domain, datasetId: dataset.datasetId, format })
+      soda.export({ ...body, domain: dataset.domain, datasetId: dataset.datasetId })
     )
   )

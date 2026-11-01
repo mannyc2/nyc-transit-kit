@@ -7,7 +7,7 @@ them. Each fact carries the date it was checked. Coverage policy is in
 ## Socrata SODA3 And Discovery
 
 - Provider: Socrata (Tyler Data & Insights).
-- Modelled: SODA3 query and export on any domain, Discovery search and dataset
+- Modelled: SODA3 query and CSV export on any domain, Discovery search and dataset
   lookup, SoQL with values written as literals, pagination, byte-range export
   probes. Retries and timeouts are left to the caller.
 - Facts:

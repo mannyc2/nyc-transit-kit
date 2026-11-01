@@ -29,19 +29,19 @@ Conventions that hold everywhere:
 
 ## @nyc-transit-kit/soda3
 
-Socrata on any domain: SODA3 query and export, the Discovery API, and SoQL.
+Socrata on any domain: SODA3 query and CSV export, the Discovery API, and SoQL.
 
 ### `@nyc-transit-kit/soda3/Soda3Client`
 
 | Export | What it does |
 | --- | --- |
-| `Soda3Client` | The service: `query(request)` returns rows, `export(request)` a byte stream. |
+| `Soda3Client` | The service: `query(request)` returns rows, `export(request)` the CSV export as a byte stream. |
 | `layer({ appToken })` | Builds the service on the `HttpClient` you provide. Sends `X-App-Token` on every request; SODA3 refuses query and export without one. |
 | `streamRows(request, pageSize?)` | Every row of a query, one page per request, ending at the first short page. Default page size 1000. When the dataset changes while you page, order by a column that puts new rows last, or a page can repeat or skip rows. Takes no `orderingSpecifier`: SODA3 refuses paging with `discard`. |
 | `countRows(ref, where?)` | `count(*)` as a number, optionally under a `Soql` fragment. |
 | `viewUrl(ref, file)` | `https://{domain}/api/v3/views/{datasetId}/{file}`. |
-| `QueryRequest`, `ExportRequest` | A `DatasetRef` plus the SODA3 body. `query` is SoQL text or a `Soql` fragment. `ExportRequest.range` asks for a byte range, which SODA3 ignored on 2026-11-01. |
-| `QueryBody`, `ExportBody`, `QueryResponse`, `Row`, `Page`, `Parameters`, `ExportFormat`, `OrderingSpecifier`, `PositiveInt` | Schemas of the wire format. `ExportFormat` is `csv`, `json` or `geojson`; on 2026-11-01 SODA3 refused `json` and `geojson` with a 406. |
+| `QueryRequest`, `ExportRequest` | A `DatasetRef` plus the SODA3 body. `query` is SoQL text or a `Soql` fragment. `ExportRequest.range` asks for a byte range, which SODA3 ignored on 2026-11-01. Exports are CSV: on 2026-11-01 SODA3 refused `json` and `geojson` with a 406, so there is no format to choose. |
+| `QueryBody`, `ExportBody`, `QueryResponse`, `Row`, `Page`, `Parameters`, `OrderingSpecifier`, `PositiveInt` | Schemas of the wire format. |
 | `QueryError`, `ExportError` | What `query` and `export` fail with. |
 
 Only the body fields SODA3 defines are sent, so a curated `Dataset` can be
@@ -74,10 +74,20 @@ export const latestInManhattan = Effect.gen(function* () {
 
 export const queensReadings = Soda3Client.countRows(speeds, Soql.eq("borough", "Queens"))
 
-export const firstKilobyte = Effect.gen(function* () {
+// One link's October readings as CSV. SODA3 ignores Range and sends the whole
+// export, so narrow it with a query.
+export const linkOctoberCsv = Effect.gen(function* () {
   const soda = yield* Soda3Client.Soda3Client
   return yield* soda
-    .export({ ...speeds, format: "csv", range: { start: 0, end: 1023 } })
+    .export({
+      ...speeds,
+      query: Soql.selectAll({
+        where: Soql.and([
+          Soql.eq("id", "385"),
+          Soql.monthRange("data_as_of", { year: 2026, month: 10 })
+        ])
+      })
+    })
     .pipe(Stream.decodeText(), Stream.mkString)
 })
 ```
@@ -123,8 +133,8 @@ export const text = Soql.compile(aceInFebruary)
 | --- | --- |
 | `Dataset<Row>` | A curated dataset: a `DatasetRef` with `title`, `description`, `row` (the schema of one full row) and an optional `timestampColumn`. |
 | `query(dataset, clauses?)` | `SELECT *` with `Soql.Clauses`; rows decoded with `dataset.row`. |
-| `stream(dataset, clauses?, pageSize?)` | Every matching row, one page per request, decoded as it arrives. |
-| `exportBytes(dataset, format, body?)` | The export as a byte stream. |
+| `stream(dataset, clauses?, pageSize?)` | Every matching row, one page per request, decoded as it arrives. Without an `orderBy`, rows come oldest first by `timestampColumn` when the dataset has one, so rows added while you page land after the pages already read. |
+| `exportBytes(dataset, body?)` | The CSV export as a byte stream; `body.query` narrows it. |
 
 Typed queries always select whole rows, because the row schema describes whole
 rows. Use `Soda3Client` for projections and aggregates.
@@ -251,13 +261,13 @@ import * as Dataset from "@nyc-transit-kit/soda3/Dataset"
 import * as Soql from "@nyc-transit-kit/soda3/Soql"
 import * as Stream from "effect/Stream"
 
-// Staten Island speeds for October 2026, decoded page by page.
+// Staten Island speeds for October 2026, decoded page by page, oldest first:
+// Traffic Speeds orders by its timestampColumn, data_as_of, unless told otherwise.
 export const october = Dataset.stream(NycDot.datasets["traffic-speeds"], {
   where: Soql.and([
     Soql.eq("borough", "Staten Island"),
     Soql.monthRange("data_as_of", { year: 2026, month: 10 })
-  ]),
-  orderBy: { column: "data_as_of" }
+  ])
 }).pipe(Stream.runCollect)
 ```
 
@@ -351,8 +361,8 @@ The root re-exports `Cli`, `Envelope` and `ReleaseManifest` as namespaces.
 
 ```text
 ntk socrata query --domain <domain> --dataset <id> --select <soql>
-ntk socrata export --domain <domain> --dataset <id> --format csv|json|geojson --output <file>
-ntk socrata range-probe --domain <domain> --dataset <id> --format <format> --range-end <n>
+ntk socrata export --domain <domain> --dataset <id> --output <file>
+ntk socrata range-probe --domain <domain> --dataset <id> --range-end <n>
 ntk catalog search --domain <domain> --query <text> [--limit <n>]
 
 ntk nyc-open-data catalog search --query <text> [--limit <n>]
@@ -368,9 +378,11 @@ ntk mta elevator-escalator --feed <name>
 `query`, `export` and `range-probe` take `--app-token`, which defaults to
 `SOCRATA_APP_TOKEN`. `--select` is required and takes a full SoQL query, or
 just what follows `SELECT`, such as `"speed, link_id LIMIT 5"`. SODA3 has no
-default limit, so a query without `LIMIT` returns every matching row. On
-2026-11-01 SODA3 refused `json` and `geojson` exports, which fail with
-`socrata-error`. `info` reads the catalog and needs no token. `gtfs-rt probe` counts what a feed holds; `decode` prints every
+default limit, so a query without `LIMIT` returns every matching row. Exports
+are CSV. Every `export` and `range-probe` still takes 0.2's `--format`, but only
+as `csv`, the default: on 2026-11-01 SODA3 refused `json` and `geojson` with a
+406, so the CLI refuses them as `invalid-option` before sending anything.
+`info` reads the catalog and needs no token. `gtfs-rt probe` counts what a feed holds; `decode` prints every
 entity. `range-probe` asks for bytes `0..N` of an export: `receivedBytes` above
 `requestedBytes` means the server ignored the range.
 

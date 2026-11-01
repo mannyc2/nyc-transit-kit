@@ -278,6 +278,69 @@ describe("queries", () => {
   )
 })
 
+describe("exports", () => {
+  const csv = HttpTest.soda3(
+    () => new Response(Samples.trafficSpeedCsv, { headers: { "content-type": "text/csv" } })
+  )
+
+  it.effect("export writes the CSV SODA3 sends, with or without --format csv", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const directory = yield* fs.makeTempDirectoryScoped()
+      const bytes = new TextEncoder().encode(Samples.trafficSpeedCsv).byteLength
+      // 0.2 scripts pass --format csv; it is also the default.
+      for (const format of [[], ["--format", "csv"]]) {
+        const output = path.join(directory, `speeds-${format.length}.csv`)
+        const ran = yield* ntk([
+          "--json",
+          "socrata",
+          "export",
+          ...speeds,
+          ...format,
+          "--output",
+          output,
+          ...token
+        ])
+        expect(yield* envelope(ran)).toMatchObject({ ok: true, data: { path: output, bytes } })
+        expect(yield* fs.readFileString(output)).toBe(Samples.trafficSpeedCsv)
+      }
+      const requests = yield* HttpTest.requests
+      expect(requests.map((request) => request.url.pathname)).toEqual([
+        "/api/v3/views/i4gi-tjb9/export.csv",
+        "/api/v3/views/i4gi-tjb9/export.csv"
+      ])
+    }).pipe(Effect.provide(world(csv)))
+  )
+
+  it.effect.each(["json", "geojson"])(
+    "--format %s is refused before anything is sent, since SODA3 answers it with a 406",
+    (format) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem
+        const path = yield* Path.Path
+        const directory = yield* fs.makeTempDirectoryScoped()
+        const ran = yield* ntk([
+          "--json",
+          "socrata",
+          "export",
+          ...speeds,
+          "--format",
+          format,
+          "--output",
+          path.join(directory, `speeds.${format}`),
+          ...token
+        ])
+        expect(yield* envelope(ran)).toMatchObject({
+          ok: false,
+          error: { code: "invalid-option", message: expect.stringContaining("--format") }
+        })
+        expect(yield* HttpTest.requests).toHaveLength(0)
+        expect(yield* fs.readDirectory(directory)).toEqual([])
+      }).pipe(Effect.provide(world(csv)))
+  )
+})
+
 describe("--dry-run", () => {
   it.effect("shows the request with the token redacted, and sends nothing", () =>
     Effect.gen(function* () {

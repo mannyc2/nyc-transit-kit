@@ -1,6 +1,6 @@
 # @nyc-transit-kit/soda3
 
-Effect client for Socrata on any domain: SODA3 query and export, Discovery
+Effect client for Socrata on any domain: SODA3 query and CSV export, Discovery
 catalog search, and SoQL built as `effect/sql` Statement fragments whose values
 are written as SoQL literals. It speaks SODA3 alone; the legacy row endpoints
 are not supported.

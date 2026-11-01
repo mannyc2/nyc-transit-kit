@@ -163,7 +163,7 @@ describe("countRows", () => {
 })
 
 describe("export", () => {
-  const exported = (request: Omit<Soda3Client.ExportRequest, "domain" | "datasetId">) =>
+  const exported = (request: Omit<Soda3Client.ExportRequest, "domain" | "datasetId"> = {}) =>
     Stream.unwrap(
       Effect.map(Soda3Client.Soda3Client, (soda) => soda.export({ ...ref, ...request }))
     ).pipe(Stream.decodeText(), Stream.mkString)
@@ -172,15 +172,16 @@ describe("export", () => {
   const csv = () =>
     new Response(Samples.trafficSpeedCsv, { headers: { "content-type": "text/csv" } })
 
-  it.effect("streams the file and sends a Range header only when asked", () =>
+  it.effect("streams the CSV and sends a Range header only when asked", () =>
     Effect.gen(function* () {
-      expect(yield* exported({ format: "csv" })).toBe(Samples.trafficSpeedCsv)
+      expect(yield* exported()).toBe(Samples.trafficSpeedCsv)
       yield* exported({
-        format: "csv",
         range: { start: 0, end: 9 },
-        query: Soql.selectAll({ limit: 1 })
+        query: Soql.selectAll({ limit: 1 }),
+        // The serialization options SODA3's documentation shows.
+        serializationOptions: { separator: "\t", bom: true }
       })
-      yield* exported({ format: "csv", range: { start: 10 } })
+      yield* exported({ range: { start: 10 } })
       const [whole, ranged, open] = yield* HttpTest.requests
       expect(whole?.url.href).toBe(
         "https://data.cityofnewyork.us/api/v3/views/i4gi-tjb9/export.csv"
@@ -188,28 +189,18 @@ describe("export", () => {
       expect(whole?.headers.range).toBeUndefined()
       expect(whole?.body).toEqual({})
       expect(ranged?.headers.range).toBe("bytes=0-9")
-      expect(ranged?.body).toEqual({ query: "SELECT * LIMIT 1" })
+      expect(ranged?.body).toEqual({
+        query: "SELECT * LIMIT 1",
+        serializationOptions: { separator: "\t", bom: true }
+      })
       expect(open?.url.pathname).toBe("/api/v3/views/i4gi-tjb9/export.csv")
       expect(open?.headers.range).toBe("bytes=10-")
     }).pipe(Effect.provide(soda3(csv)))
   )
 
-  it.effect("json and geojson exports fail with SODA3's 406", () =>
-    Effect.gen(function* () {
-      for (const format of ["json", "geojson"] as const) {
-        const error = yield* Effect.flip(exported({ format }))
-        expect(error).toMatchObject({
-          _tag: "SocrataError",
-          status: 406,
-          message: Samples.soda3ExportTypeUnavailable.message
-        })
-      }
-    }).pipe(Effect.provide(soda3(csv)))
-  )
-
   it.effect("a refusal fails the stream with Socrata's sentence", () =>
     Effect.gen(function* () {
-      const error = yield* Effect.flip(exported({ format: "csv" }))
+      const error = yield* Effect.flip(exported())
       expect(error).toMatchObject({
         _tag: "SocrataError",
         status: 403,

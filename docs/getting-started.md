@@ -270,8 +270,8 @@ Socrata:
 | `retryTimes`, timeout options, `withRequestPolicy` | `HttpClient.retryTransient`, `Effect.retry`, `Effect.timeout` on your side |
 | `soda3FetchLayer(fetch)`, `FetchImplementation` | `FetchHttpClient.layer`, with your `fetch` provided under it as `Layer.succeed(FetchHttpClient.Fetch, fetch)` |
 | `queryRows(input)` | the `Soda3Client` service's `query(request)`, or `Dataset.query(dataset, clauses)` for typed rows |
-| `queryAllRows`, `countRows` | `Soda3Client.streamRows(request)` or `Dataset.stream(dataset)`; `Soda3Client.countRows(ref, where?)` |
-| `exportResponse` | the service's `export(request)` or `Dataset.exportBytes(dataset, format)`, a byte stream |
+| `queryAllRows`, `countRows` | `Soda3Client.streamRows(request)` or `Dataset.stream(dataset)`, which pages oldest first by the dataset's `timestampColumn` unless given an `orderBy`; `Soda3Client.countRows(ref, where?)` |
+| `exportResponse`, `Soda3ExportFormat` | the service's `export(request)` or `Dataset.exportBytes(dataset, body?)`, a CSV byte stream. There is no format to choose: on 2026-11-01 SODA3 refused `json` and `geojson` exports with a 406 |
 | `catalogSearch`, `buildCatalogSearchUrl` | `Discovery.search(search)`, `Discovery.url` |
 | `fetchDatasetMetadata` | `Discovery.metadata(ref)`; `Discovery.columns(result)` zips its columns |
 | `buildQueryUrl`, `buildExportUrl` | `Soda3Client.viewUrl(ref, "query.json")`, `Soda3Client.viewUrl(ref, "export.csv")` |
@@ -330,6 +330,7 @@ Fixtures and the CLI:
 | `schemaVersion` `0.1.0`, `releaseVersion` | `Envelope.schemaVersion` is `0.2.0`; the release version is the package version |
 | `packageName` exports | removed |
 | CLI `SOCRATA_APP_TOKEN` optional | required for `socrata query`, `export`, `range-probe` and the `dataset query` and `export` commands |
+| CLI `--format json`, `--format geojson` | refused as `invalid-option` before any request, since SODA3 answered both with a 406; `--format csv`, the default, still works |
 | CLI `--json` help printed raw | `--json --help` answers with `{ ok: true, data: { help } }` |
 | `ntk mta gtfs-rt decode` repeated `probe` | it prints every entity |
 

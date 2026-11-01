@@ -6,6 +6,7 @@ import * as Layer from "effect/Layer"
 import * as Redacted from "effect/Redacted"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
+import * as Struct from "effect/Struct"
 import * as Dataset from "../src/Dataset"
 import { FloatingTimestamp, SocrataDatasetId, SocrataDomain } from "../src/Socrata"
 import * as Soda3Client from "../src/Soda3Client"
@@ -52,32 +53,50 @@ describe("query", () => {
   )
 })
 
-it.effect("stream decodes every row of every page", () =>
-  Effect.gen(function* () {
-    const pageSize = Samples.trafficSpeedRows.length
-    const rows = yield* Stream.runCollect(
-      Dataset.stream(speeds, { where: Soql.isNotNull("speed") }, pageSize)
-    )
-    expect(rows).toHaveLength(pageSize * 2)
-    const bodies = (yield* HttpTest.requests).map((request) => request.body)
-    expect(bodies[0]).toEqual({
-      query: "SELECT * WHERE `speed` IS NOT NULL",
-      page: { pageNumber: 1, pageSize }
-    })
-    expect(bodies).toHaveLength(3)
-  }).pipe(
-    Effect.provide(
-      soda3((request) => {
-        const { page } = request.body as { readonly page: { readonly pageNumber: number } }
-        return Response.json(page.pageNumber < 3 ? Samples.trafficSpeedRows : [])
+describe("stream", () => {
+  it.effect("pages oldest first by the timestamp column and decodes every row", () =>
+    Effect.gen(function* () {
+      const pageSize = Samples.trafficSpeedRows.length
+      const rows = yield* Stream.runCollect(
+        Dataset.stream(speeds, { where: Soql.isNotNull("speed") }, pageSize)
+      )
+      expect(rows).toHaveLength(pageSize * 2)
+      const bodies = (yield* HttpTest.requests).map((request) => request.body)
+      // Rows added while it pages sort last, so the pages already read stay put.
+      expect(bodies[0]).toEqual({
+        query: "SELECT * WHERE `speed` IS NOT NULL ORDER BY `data_as_of` ASC",
+        page: { pageNumber: 1, pageSize }
       })
+      expect(bodies).toHaveLength(3)
+    }).pipe(
+      Effect.provide(
+        soda3((request) => {
+          const { page } = request.body as { readonly page: { readonly pageNumber: number } }
+          return Response.json(page.pageNumber < 3 ? Samples.trafficSpeedRows : [])
+        })
+      )
     )
   )
-)
 
-it.effect("exportBytes asks for the format and passes the body along", () =>
+  it.effect("keeps the order it is given, and orders nothing without a timestamp column", () =>
+    Effect.gen(function* () {
+      yield* Stream.runDrain(
+        Dataset.stream(speeds, { orderBy: { column: "id", direction: "DESC" } })
+      )
+      yield* Stream.runDrain(Dataset.stream(Struct.omit(speeds, ["timestampColumn"])))
+      const bodies = (yield* HttpTest.requests).map((request) => request.body)
+      const firstPage = { pageNumber: 1, pageSize: 1000 }
+      expect(bodies).toEqual([
+        { query: "SELECT * ORDER BY `id` DESC", page: firstPage },
+        { query: "SELECT *", page: firstPage }
+      ])
+    }).pipe(Effect.provide(soda3(() => Response.json([]))))
+  )
+})
+
+it.effect("exportBytes asks for the CSV export and passes the body along", () =>
   Effect.gen(function* () {
-    const text = yield* Dataset.exportBytes(speeds, "csv", {
+    const text = yield* Dataset.exportBytes(speeds, {
       query: Soql.selectAll({ limit: 2 })
     }).pipe(Stream.decodeText(), Stream.mkString)
     expect(text).toBe(Samples.trafficSpeedCsv)

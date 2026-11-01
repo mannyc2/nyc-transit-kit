@@ -37,8 +37,8 @@ const exportCommand = Command.make(
     output: outputFlag("File to write the export to."),
     appToken: appTokenFlag
   },
-  ({ domain, datasetId, format, output, appToken }) =>
-    exportRows("socrata", { domain, datasetId }, format, output).pipe(
+  ({ domain, datasetId, output, appToken }) =>
+    exportRows("socrata", { domain, datasetId }, output).pipe(
       Effect.provide(Soda3Client.layer({ appToken }))
     )
 ).pipe(Command.withShortDescription("Export a SODA3 dataset to a file."))
@@ -54,13 +54,13 @@ const rangeProbeCommand = Command.make(
     ),
     appToken: appTokenFlag
   },
-  ({ domain, datasetId, format, rangeEnd, appToken }) =>
+  ({ domain, datasetId, rangeEnd, appToken }) =>
     Effect.gen(function* () {
       const soda = yield* Soda3Client.Soda3Client
       const requestedBytes = rangeEnd + 1
       // Stops reading past the range: a server that ignores Range sends the whole export.
       const receivedBytes = yield* soda
-        .export({ domain, datasetId, format, range: { start: 0, end: rangeEnd } })
+        .export({ domain, datasetId, range: { start: 0, end: rangeEnd } })
         .pipe(
           Stream.scan(
             () => 0,

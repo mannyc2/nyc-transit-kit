@@ -22,7 +22,7 @@ against the providers' own catalogs.
 
 | Provider | Generic | Curated | Typed rows | Direct feeds |
 | --- | --- | --- | --- | --- |
-| Any Socrata domain | SODA3 query and export, Discovery search | none | catalog results, error bodies | none |
+| Any Socrata domain | SODA3 query and CSV export, Discovery search | none | catalog results, error bodies | none |
 | NYC Open Data, `data.cityofnewyork.us` | yes | none outside DOT | none | none |
 | NYC DOT | through NYC Open Data | bus lanes, traffic speeds, traffic volume counts | all three | none |
 | MTA Open Data, `data.ny.gov` | yes | the MTA Open Data Catalog | the catalog's rows | none |

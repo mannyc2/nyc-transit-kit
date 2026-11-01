@@ -13,7 +13,7 @@ official provider, and each module is a namespace:
 
 | Package | Modules | Holds |
 | --- | --- | --- |
-| `@nyc-transit-kit/soda3` | `Soda3Client`, `Dataset`, `Discovery`, `Soql`, `Socrata` | SODA3 query and export on any Socrata domain, Discovery search, SoQL built on `effect/sql` Statement |
+| `@nyc-transit-kit/soda3` | `Soda3Client`, `Dataset`, `Discovery`, `Soql`, `Socrata` | SODA3 query and CSV export on any Socrata domain, Discovery search, SoQL built on `effect/sql` Statement |
 | `@nyc-transit-kit/mta` | `GtfsStatic`, `GtfsRealtime`, `ElevatorEscalator`, `BusTime`, `MtaOpenData` | GTFS static and realtime feeds, elevator and escalator outages, Bus Time, MTA datasets on NYS Open Data |
 | `@nyc-transit-kit/nyc-open-data` | `NycDot`, `NycOpenData` | NYC DOT traffic speeds, traffic volume counts and bus lanes with row schemas, and the NYC Open Data domain |
 | `@nyc-transit-kit/fixtures` | `Samples`, `HttpTest` | Real response samples, and an `HttpClient` for tests that records each request |
@@ -67,7 +67,7 @@ bunx ntk nyc-dot dataset query --name traffic-speeds --select "link_name, speed 
 bunx ntk catalog search --domain data.ny.gov --query subway --limit 5
 bunx ntk mta gtfs-rt probe --feed subway-ace --json
 bunx ntk mta gtfs-rt capture --feed lirr --output lirr.pb --manifest-output lirr.json
-bunx ntk socrata export --domain data.ny.gov --dataset f462-ka72 --format csv --output mta.csv --dry-run
+bunx ntk socrata export --domain data.ny.gov --dataset f462-ka72 --output mta.csv --dry-run
 ```
 
 - `--json` writes exactly one envelope, `{ ok, data | error, meta }`, to stdout.

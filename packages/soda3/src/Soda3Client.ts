@@ -1,5 +1,5 @@
 /**
- * SODA3 `query.json` and `export.{format}` on any Socrata domain.
+ * SODA3 `query.json` and `export.csv` on any Socrata domain.
  */
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -15,13 +15,6 @@ import * as Stream from "effect/Stream"
 import * as Struct from "effect/Struct"
 import { type DatasetRef, filterStatusOk, type SocrataError } from "./Socrata"
 import * as Soql from "./Soql"
-
-/**
- * The export formats Socrata names. On 2026-11-01 SODA3 refused `json` and
- * `geojson` with a 406 on every dataset tried; `csv` worked.
- */
-export const ExportFormat = Schema.Literals(["csv", "json", "geojson"])
-export type ExportFormat = typeof ExportFormat.Type
 
 export const OrderingSpecifier = Schema.Literals(["total", "discard"])
 export type OrderingSpecifier = typeof OrderingSpecifier.Type
@@ -49,13 +42,18 @@ export const QueryBody = Schema.Struct({
 })
 export type QueryBody = typeof QueryBody.Type
 
-/** Body of `POST /api/v3/views/{id}/export.{format}`. */
+/**
+ * Body of `POST /api/v3/views/{id}/export.csv`. SODA3's documentation shapes
+ * the file with `serializationOptions`, such as `{ separator: "\t", bom: true }`.
+ */
 export const ExportBody = Schema.Struct({
   query: Schema.optionalKey(Schema.String),
   parameters: Schema.optionalKey(Parameters),
   timeout: Schema.optionalKey(PositiveInt),
   orderingSpecifier: Schema.optionalKey(OrderingSpecifier),
-  serializationOptions: Schema.optionalKey(Schema.Record(Schema.String, Schema.String))
+  serializationOptions: Schema.optionalKey(
+    Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Boolean]))
+  )
 })
 export type ExportBody = typeof ExportBody.Type
 
@@ -74,8 +72,12 @@ export interface QueryRequest extends DatasetRef, Omit<QueryBody, "query"> {
   readonly query: string | Soql.Fragment
 }
 
+/**
+ * A CSV export, narrowed by `query` when given. CSV is the format SODA3
+ * exported on 2026-11-01; it refused `json` and `geojson` with a 406 on every
+ * dataset tried.
+ */
 export interface ExportRequest extends DatasetRef, Omit<ExportBody, "query"> {
-  readonly format: ExportFormat
   readonly query?: string | Soql.Fragment
   /**
    * Ask for a byte range. On 2026-11-01 SODA3 ignored it and sent the whole
@@ -96,10 +98,10 @@ export const viewUrl = (ref: DatasetRef, file: string) =>
   `https://${ref.domain}/api/v3/views/${ref.datasetId}/${file}`
 
 /**
- * SODA3 query and export. Socrata refuses both without an app token, so the
- * layer requires one. Retries and timeouts belong to the caller's HttpClient.
- * SODA3 has no default limit: a query without `LIMIT` or `page` returns every
- * matching row.
+ * SODA3 query, and export as CSV. Socrata refuses both without an app token,
+ * so the layer requires one. Retries and timeouts belong to the caller's
+ * HttpClient. SODA3 has no default limit: a query without `LIMIT` or `page`
+ * returns every matching row.
  */
 export class Soda3Client extends Context.Service<
   Soda3Client,
@@ -163,7 +165,7 @@ export const layer = (options: { readonly appToken: Redacted.Redacted }) =>
           Effect.map(exportBody(request), (body) =>
             HttpClientResponse.stream(
               post(
-                viewUrl(request, `export.${request.format}`),
+                viewUrl(request, "export.csv"),
                 body,
                 request.range === undefined
                   ? {}
