@@ -129,7 +129,7 @@ jobs:
         run: |
           if ! bun run release run --config release.config.json --execute --approve-irreversible; then
             echo "Release run failed; checking whether remote state completed after propagation delay."
-            bun run release:remote-state --config release.config.json --require-complete --settle-attempts 36 --settle-delay-ms 5000
+            bun run release:remote-state --config release.config.json --require-complete --settle-attempts 180 --settle-delay-ms 5000
           fi
 
       - name: Upload release evidence

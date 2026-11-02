@@ -1,7 +1,7 @@
 # nyc-transit-kit SPEC
 
 The decisions that stand until someone reverses them here, one line each. The
-code and its tests hold the detail. Last updated 2026-11-01 for 0.3.0.
+code and its tests hold the detail. Last updated 2026-11-02 for 0.3.1.
 
 ## Mission
 
@@ -41,7 +41,8 @@ apps can depend on without inheriting anyone's product pipeline.
 ## Effect
 
 - Effect 4.0.6 stable. Libraries take `effect` as a peer (`^4.0.6`) so an app
-  never loads two copies; the CLI pins it exactly.
+  never loads two copies; the CLI pins it exactly, with every Effect platform
+  package it loads, because those only range each other.
 - The installed `node_modules/effect` is the API authority: its `AGENTS.md` and
   declarations, not a vendored checkout or memory of the betas.
 - Libraries require `HttpClient` and choose no transport, retry or timeout.

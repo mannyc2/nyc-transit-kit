@@ -5,7 +5,7 @@ declare const process: {
 }
 
 /** The release version. `bun run release:version` keeps it equal to package.json. */
-export const version = "0.3.0"
+export const version = "0.3.1"
 
 export const commit = process.env.NTK_BUILD_COMMIT ?? "unknown"
 

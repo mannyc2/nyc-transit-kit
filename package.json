@@ -1,6 +1,6 @@
 {
   "name": "nyc-transit-kit",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "workspaces": {
@@ -10,6 +10,7 @@
     ],
     "catalog": {
       "@effect/platform-bun": "4.0.6",
+      "@effect/platform-node-shared": "4.0.6",
       "@effect/vitest": "4.0.6",
       "effect": "4.0.6",
       "gtfs-realtime-bindings": "2.0.0"
@@ -32,7 +33,7 @@
     "check:style:write": "biome check --write .",
     "check:package": "bun run scripts/check-package-archives.ts",
     "check:provider-coverage": "bun run scripts/check-provider-coverage-set.ts",
-    "check:npm-stage": "bun run scripts/check-npm-release-stage.ts",
+    "check:npm-stage": "bun run scripts/check-npm-release-stage.ts && bun run scripts/check-cli-install.ts",
     "check:release-config": "bun run scripts/check-release-config.ts",
     "check:release-ci": "bun run tools/release/run-ts-release.ts check-ci --config release.config.json --workflow .github/workflows/release.yml",
     "check:release-local": "bun run release:version:check && bun run check && bun run build:cli && bun run release:prepare:npm && bun run check:npm-stage && bun run check:release-config && bun run check:release-ci && bun run release:plan",

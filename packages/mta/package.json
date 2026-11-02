@@ -1,6 +1,6 @@
 {
   "name": "@nyc-transit-kit/mta",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -18,7 +18,7 @@
     "src"
   ],
   "dependencies": {
-    "@nyc-transit-kit/soda3": "0.3.0",
+    "@nyc-transit-kit/soda3": "0.3.1",
     "gtfs-realtime-bindings": "catalog:"
   },
   "publishConfig": {
@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@effect/platform-bun": "catalog:",
-    "@nyc-transit-kit/fixtures": "0.3.0",
+    "@nyc-transit-kit/fixtures": "0.3.1",
     "effect": "catalog:"
   }
 }

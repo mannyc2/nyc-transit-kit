@@ -17,25 +17,26 @@
     },
     "apps/cli": {
       "name": "@nyc-transit-kit/cli",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "bin": {
         "ntk": "./src/bin.ts",
         "nyc-transit": "./src/bin.ts",
       },
       "dependencies": {
         "@effect/platform-bun": "catalog:",
-        "@nyc-transit-kit/mta": "0.3.0",
-        "@nyc-transit-kit/nyc-open-data": "0.3.0",
-        "@nyc-transit-kit/soda3": "0.3.0",
+        "@effect/platform-node-shared": "catalog:",
+        "@nyc-transit-kit/mta": "0.3.1",
+        "@nyc-transit-kit/nyc-open-data": "0.3.1",
+        "@nyc-transit-kit/soda3": "0.3.1",
         "effect": "catalog:",
       },
       "devDependencies": {
-        "@nyc-transit-kit/fixtures": "0.3.0",
+        "@nyc-transit-kit/fixtures": "0.3.1",
       },
     },
     "packages/fixtures": {
       "name": "@nyc-transit-kit/fixtures",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "devDependencies": {
         "effect": "catalog:",
       },
@@ -45,14 +46,14 @@
     },
     "packages/mta": {
       "name": "@nyc-transit-kit/mta",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "dependencies": {
-        "@nyc-transit-kit/soda3": "0.3.0",
+        "@nyc-transit-kit/soda3": "0.3.1",
         "gtfs-realtime-bindings": "catalog:",
       },
       "devDependencies": {
         "@effect/platform-bun": "catalog:",
-        "@nyc-transit-kit/fixtures": "0.3.0",
+        "@nyc-transit-kit/fixtures": "0.3.1",
         "effect": "catalog:",
       },
       "peerDependencies": {
@@ -61,12 +62,12 @@
     },
     "packages/nyc-open-data": {
       "name": "@nyc-transit-kit/nyc-open-data",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "dependencies": {
-        "@nyc-transit-kit/soda3": "0.3.0",
+        "@nyc-transit-kit/soda3": "0.3.1",
       },
       "devDependencies": {
-        "@nyc-transit-kit/fixtures": "0.3.0",
+        "@nyc-transit-kit/fixtures": "0.3.1",
         "effect": "catalog:",
       },
       "peerDependencies": {
@@ -75,9 +76,9 @@
     },
     "packages/soda3": {
       "name": "@nyc-transit-kit/soda3",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "devDependencies": {
-        "@nyc-transit-kit/fixtures": "0.3.0",
+        "@nyc-transit-kit/fixtures": "0.3.1",
         "effect": "catalog:",
       },
       "peerDependencies": {
@@ -91,6 +92,7 @@
   ],
   "catalog": {
     "@effect/platform-bun": "4.0.6",
+    "@effect/platform-node-shared": "4.0.6",
     "@effect/vitest": "4.0.6",
     "effect": "4.0.6",
     "gtfs-realtime-bindings": "2.0.0",
