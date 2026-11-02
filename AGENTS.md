@@ -17,8 +17,11 @@ transit data. The standing decisions are in `SPEC.md`; read it first.
 - Effect is 4.0.6 stable. The installed `node_modules/effect` is the API
   authority: read `node_modules/effect/AGENTS.md` and the declarations before
   using an API. There is no vendored Effect checkout.
-- Libraries peer `effect` at `^4.0.6`. The CLI pins `effect` and
-  `@effect/platform-bun` through the root catalog.
+- Libraries peer `effect` at `^4.0.6`. The CLI pins `effect`,
+  `@effect/platform-bun` and `@effect/platform-node-shared` through the root
+  catalog. `platform-bun` only ranges `platform-node-shared`, so without the
+  pin a fresh install takes one built for a newer Effect; 0.3.0 shipped that way.
+  `bun run check:npm-stage` installs the CLI fresh to catch it.
 - Use Bun for installs, scripts, tests and builds.
 - Socrata access is SODA3 only: no SODA2 helpers, `/resource/` URLs, fallbacks
   or aliases. Build SoQL with `Soql` fragments; values become SoQL literals.

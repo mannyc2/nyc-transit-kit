@@ -224,4 +224,19 @@ describe("release policy", () => {
     }
     expect(offenders).toEqual([])
   })
+
+  it("pins every Effect package the CLI's platform layer pulls in", async () => {
+    // @effect/platform-bun asks for @effect/platform-node-shared ^4.0.6. A fresh
+    // install of the 0.3.0 CLI took 4.1.2, built for Effect 4.1, beside the
+    // pinned 4.0.6, and crashed; the workspace lockfile hid it.
+    const cli = await readManifest(join(rootPath, "apps/cli"))
+    // Read as plain JSON: Effect's own manifests nest their exports.
+    const platform: { readonly dependencies?: Readonly<Record<string, string>> } = await Bun.file(
+      join(rootPath, "node_modules/@effect/platform-bun/package.json")
+    ).json()
+    const unpinned = Object.keys(platform.dependencies ?? {})
+      .filter(isEffectRuntimePackage)
+      .filter((name) => cli.dependencies?.[name] !== "catalog:")
+    expect(unpinned).toEqual([])
+  })
 })

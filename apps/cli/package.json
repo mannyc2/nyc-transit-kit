@@ -1,6 +1,6 @@
 {
   "name": "@nyc-transit-kit/cli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -21,15 +21,16 @@
   ],
   "dependencies": {
     "@effect/platform-bun": "catalog:",
-    "@nyc-transit-kit/mta": "0.3.0",
-    "@nyc-transit-kit/nyc-open-data": "0.3.0",
-    "@nyc-transit-kit/soda3": "0.3.0",
+    "@effect/platform-node-shared": "catalog:",
+    "@nyc-transit-kit/mta": "0.3.1",
+    "@nyc-transit-kit/nyc-open-data": "0.3.1",
+    "@nyc-transit-kit/soda3": "0.3.1",
     "effect": "catalog:"
   },
   "publishConfig": {
     "access": "public"
   },
   "devDependencies": {
-    "@nyc-transit-kit/fixtures": "0.3.0"
+    "@nyc-transit-kit/fixtures": "0.3.1"
   }
 }

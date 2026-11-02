@@ -1,10 +1,10 @@
 {
   "identity": {
     "name": "nyc-transit-kit",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "commit": "HEAD",
-    "tag": "v0.3.0",
-    "notes": "Effect 4.0.6 stable redesign: apps/ and packages/, provider modules with PascalCase names, SoQL built on effect/sql Statement with values written as SoQL literals, tests on @effect/vitest with TestClock and an HttpClient test layer, CLI JSON schema 0.2.0. NYC DOT moves into @nyc-transit-kit/nyc-open-data and the row schemas of @nyc-transit-kit/contracts move into their provider modules, so neither package is released again. Drops the Promise compat package."
+    "tag": "v0.3.1",
+    "notes": "Fixes the 0.3.0 CLI, which crashed when installed fresh with \"Cannot find module 'effect/process/CommandLine'\". @effect/platform-bun 4.0.6 asks for @effect/platform-node-shared ^4.0.6, which now resolves to 4.1.2, a version built for Effect 4.1, while the CLI pins Effect 4.0.6. The CLI now pins @effect/platform-node-shared 4.0.6 as well, and the release checks install the CLI fresh, as a user would, and run it. The libraries are unchanged from 0.3.0."
   },
   "artifacts": [
     {
@@ -51,31 +51,31 @@
     },
     {
       "id": "github-cli-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-cli-0.3.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-cli-0.3.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-fixtures-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-fixtures-0.3.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-fixtures-0.3.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-mta-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-mta-0.3.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-mta-0.3.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-nyc-open-data-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-nyc-open-data-0.3.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-nyc-open-data-0.3.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     },
     {
       "id": "github-soda3-tarball",
-      "path": ".release/artifacts/nyc-transit-kit-soda3-0.3.0.tgz",
+      "path": ".release/artifacts/nyc-transit-kit-soda3-0.3.1.tgz",
       "format": "tarball",
       "consumers": ["github"]
     }

@@ -23,7 +23,13 @@ Install only the provider packages you use. Each module is a namespace:
 | 0.1.0 / 0.1.1 | 4.0.0-beta.83 | exact dependency |
 | 0.1.2 / 0.1.3 / 0.1.4 | 4.0.0-beta.92 | exact dependency |
 | 0.2.0 | 4.0.0-beta.92 | exact dependency |
-| 0.3.0 | ^4.0.6 | peer dependency; the CLI pins 4.0.6 |
+| 0.3.0 / 0.3.1 | ^4.0.6 | peer dependency; the CLI pins 4.0.6 |
+
+Use the 0.3.1 CLI. The 0.3.0 CLI crashes when installed fresh, with "Cannot find
+module 'effect/process/CommandLine'": npm hands it an
+`@effect/platform-node-shared` built for Effect 4.1. If you are held to 0.3.0,
+install `@effect/platform-node-shared@4.0.6` beside it. The libraries are
+unaffected.
 
 Your compiler checks the kit's source with your settings, so the published
 modules are type-checked under TypeScript 6 with `strict`,

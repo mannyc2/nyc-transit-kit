@@ -1,16 +1,17 @@
 # Release
 
-Versions 0.1.0 through 0.2.0 are published to npm under
-`@nyc-transit-kit/*`. The package release version is separate from the CLI
-envelope version exposed as `schemaVersion`.
+A version is published to npm under `@nyc-transit-kit/*` when its version bump
+merges to `main`. The package release version is separate from the CLI envelope
+version exposed as `schemaVersion`.
 
-0.3.0 is prepared but not published. It moves to Effect 4.0.6 stable with
-`effect` as a peer dependency, moves the CLI to `apps/cli`, and raises
-`schemaVersion` to `0.2.0`. It publishes five packages: `soda3`, `mta`,
-`nyc-open-data`, `fixtures` and `cli`. `@nyc-transit-kit/compat`,
-`@nyc-transit-kit/contracts` and `@nyc-transit-kit/nyc-dot` left the workspace;
-their 0.2.0 versions stay installable on npm until someone decides to deprecate
-them. Migration notes are in `docs/getting-started.md`.
+0.3.0 moved to Effect 4.0.6 stable with `effect` as a peer dependency, moved
+the CLI to `apps/cli`, and raised `schemaVersion` to `0.2.0`. It publishes five
+packages: `soda3`, `mta`, `nyc-open-data`, `fixtures` and `cli`.
+`@nyc-transit-kit/compat`, `@nyc-transit-kit/contracts` and
+`@nyc-transit-kit/nyc-dot` left the workspace; their 0.2.0 versions stay
+installable on npm until someone decides to deprecate them. Migration notes are
+in `docs/getting-started.md`. 0.3.1 fixes the 0.3.0 CLI, which crashed when
+installed fresh; see NPM Staging.
 
 Releases run through `.github/workflows/release.yml` with `ts-release` and npm
 trusted publishing. Publication must still be preceded by local checks, GitHub
@@ -79,6 +80,17 @@ paths, `.env` files, or private artifacts.
 The CLI npm package runs on Bun: its `ntk` and `nyc-transit` bins are
 `src/bin.ts`, which starts with a Bun shebang. The compiled `dist/ntk` binary is
 the no-runtime executable artifact for GitHub Releases.
+
+The workspace lockfile pins every transitive version, but a user installing the
+CLI gets whatever npm resolves that day. So `check:npm-stage` also installs the
+staged CLI tarball outside the repository with no lockfile, the staged
+libraries standing in for their unpublished versions, and runs
+`ntk --version --json`. It fails if `ntk` does not start, if the install holds
+two copies of `effect`, or if an installed package's `effect` peer range
+rejects the one installed. 0.3.0 passed every other check and still crashed on
+a fresh install: `@effect/platform-bun` 4.0.6 asks for
+`@effect/platform-node-shared` `^4.0.6`, which resolved to 4.1.2, a version
+built for Effect 4.1. The CLI has pinned `platform-node-shared` since 0.3.1.
 
 ## ts-release
 
@@ -264,7 +276,7 @@ npm view @nyc-transit-kit/mta version
 npm view @nyc-transit-kit/nyc-open-data version
 npm view @nyc-transit-kit/cli version
 npm view @nyc-transit-kit/fixtures version
-gh release view v0.3.0 --repo mannyc2/nyc-transit-kit
+gh release view v0.3.1 --repo mannyc2/nyc-transit-kit
 ```
 
 Download the GitHub binary artifact and run `ntk --version --json`; it should
@@ -277,20 +289,29 @@ state, for example when every npm package for a version is published but the
 matching GitHub release tag is missing. Do not rerun package publication in that
 state; npm package versions are immutable.
 
+npm takes minutes to show a fresh publish. On 2026-11-02 the 0.3.0 run went
+red although all five publishes had succeeded: `ts-release` checked for
+`@nyc-transit-kit/cli@0.3.0` seconds after publishing it, and the workflow's
+recheck gave up after about four minutes, while `mta` took about eight and a
+half to appear. The recheck now sleeps up to fifteen minutes in all. Before
+acting on a red run, download its `release-execution-evidence` artifact:
+`.release/evidence/evidence.json` records each operation's exit code and
+output.
+
 First verify the remote state explicitly:
 
 ```sh
 for package in soda3 mta nyc-open-data cli fixtures; do
   npm view "@nyc-transit-kit/${package}" version
 done
-gh release view v0.3.0 --repo mannyc2/nyc-transit-kit
+gh release view v0.3.1 --repo mannyc2/nyc-transit-kit
 ```
 
 If npm reports the configured version for every package and `gh release view`
 reports a draft release, publish it with:
 
 ```sh
-gh release edit v0.3.0 --repo mannyc2/nyc-transit-kit --draft=false
+gh release edit v0.3.1 --repo mannyc2/nyc-transit-kit --draft=false
 ```
 
 If npm reports the configured version for every package and `gh release view`
@@ -304,16 +325,16 @@ bun install
 bun run check
 bun run build:cli
 bun run release:prepare:npm
-bun -e 'const config = await Bun.file("release.config.json").json(); await Bun.write("/tmp/nyc-transit-kit-v0.3.0-notes.md", `${config.identity.notes}\n`)'
-gh release create v0.3.0 \
+bun -e 'const config = await Bun.file("release.config.json").json(); await Bun.write("/tmp/nyc-transit-kit-v0.3.1-notes.md", `${config.identity.notes}\n`)'
+gh release create v0.3.1 \
   --repo mannyc2/nyc-transit-kit \
-  --title "v0.3.0" \
-  --notes-file /tmp/nyc-transit-kit-v0.3.0-notes.md \
+  --title "v0.3.1" \
+  --notes-file /tmp/nyc-transit-kit-v0.3.1-notes.md \
   dist/ntk \
   dist/ntk-release-manifest.json \
   .release/artifacts/*.tgz
 ```
 
-After recovery, rerun `gh release view v0.3.0 --repo mannyc2/nyc-transit-kit`.
+After recovery, rerun `gh release view v0.3.1 --repo mannyc2/nyc-transit-kit`.
 The next `Release` workflow run should then stop at the remote-state check
 instead of attempting another publish.
