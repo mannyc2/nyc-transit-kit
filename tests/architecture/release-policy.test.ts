@@ -1,158 +1,119 @@
-import { describe, expect, test } from "bun:test"
 import { join } from "node:path"
+import { describe, expect, it } from "@effect/vitest"
+import * as Schema from "effect/Schema"
+import ts from "typescript"
 import { classifyReleaseState } from "../../scripts/check-release-remote-state"
 import {
   dependencyGroups,
+  expectedEffectPeerRange,
   expectedEffectToolingVersions,
   expectedEffectVersion,
-  expectedPackages,
   expectedRootToolingCatalogVersions,
-  isCatalogReference,
   isEffectRuntimePackage,
   isEffectToolingPackage,
-  isRecord,
-  packageRoot,
-  readJsonRecord,
+  readManifest,
   rootPath,
-  stringValue
+  workspaces
 } from "./helpers"
 
+const ReleaseConfig = Schema.Struct({
+  targets: Schema.Array(
+    Schema.Struct({ _tag: Schema.String, draft: Schema.optionalKey(Schema.Boolean) })
+  )
+})
+
+const readReleaseConfig = async () =>
+  Schema.decodeUnknownSync(Schema.fromJsonString(ReleaseConfig))(
+    await Bun.file(join(rootPath, "release.config.json")).text()
+  )
+
 describe("release policy", () => {
-  const publishedPackageStates = expectedPackages.map((packageName) => ({
-    packageName: `@nyc-transit-kit/${packageName}`,
+  const publishedPackageStates = workspaces.map((workspace) => ({
+    packageName: `@nyc-transit-kit/${workspace.name}`,
     state: "published" as const
   }))
 
-  test("configures Effect language service for workspace TypeScript", async () => {
+  it("runs the Effect language service over the whole workspace", async () => {
+    const { scripts } = await readManifest(rootPath)
+    // tsconfig.json has comments, so TypeScript reads it.
+    const tsconfig = ts.readConfigFile(join(rootPath, "tsconfig.json"), ts.sys.readFile)
+    const plugins: ReadonlyArray<{ readonly name?: string }> =
+      tsconfig.config?.compilerOptions?.plugins ?? []
     const offenders: Array<string> = []
-    const rootManifest = await readJsonRecord(join(rootPath, "package.json"))
-    const scripts = isRecord(rootManifest.scripts) ? rootManifest.scripts : {}
-    const prepare = typeof scripts.prepare === "string" ? scripts.prepare : ""
-    const check = typeof scripts.check === "string" ? scripts.check : ""
-    const checkEffect = typeof scripts["check:effect"] === "string" ? scripts["check:effect"] : ""
-    const tsconfig = await readJsonRecord(join(rootPath, "tsconfig.base.json"))
-    const compilerOptions = isRecord(tsconfig.compilerOptions) ? tsconfig.compilerOptions : {}
-    const plugins = Array.isArray(compilerOptions.plugins) ? compilerOptions.plugins : []
 
-    if (!prepare.includes("./scripts/prepare-effect.sh")) {
-      offenders.push("root prepare script must keep the vendored Effect repo setup")
-    }
-    if (!prepare.includes("effect-language-service patch")) {
+    // The installed effect package, with its AGENTS.md and source, is the API reference.
+    if (!scripts?.prepare?.includes("effect-language-service patch")) {
       offenders.push("root prepare script must patch TypeScript with Effect diagnostics")
     }
-    if (!check.includes("bun run check:effect")) {
+    if (!scripts?.check?.includes("bun run check:effect")) {
       offenders.push("root check script must run Effect language service diagnostics")
     }
-    if (!checkEffect.includes("effect-language-service diagnostics --project tsconfig.json")) {
+    if (
+      !scripts?.["check:effect"]?.includes(
+        "effect-language-service diagnostics --project tsconfig.json"
+      )
+    ) {
       offenders.push("check:effect must run project-wide Effect diagnostics")
     }
-    if (!plugins.some((plugin) => isRecord(plugin) && plugin.name === "@effect/language-service")) {
-      offenders.push("tsconfig.base.json must enable @effect/language-service")
+    if (!plugins.some((plugin) => plugin.name === "@effect/language-service")) {
+      offenders.push("tsconfig.json must enable @effect/language-service")
     }
-
     expect(offenders).toEqual([])
   })
 
-  test("keeps package release versions synchronized", async () => {
-    const rootManifest = await readJsonRecord(join(rootPath, "package.json"))
-    const rootVersion = stringValue(rootManifest, "version")
+  it("keeps every workspace and internal dependency on the release version", async () => {
+    const { version } = await readManifest(rootPath)
     const offenders: Array<string> = []
-
-    if (rootVersion === undefined) {
-      offenders.push("root package.json is missing version")
-    }
-
-    for (const packageDirectory of expectedPackages) {
-      const manifestPath = join(packageRoot, packageDirectory, "package.json")
-      const manifest = await readJsonRecord(manifestPath)
-      const manifestVersion = stringValue(manifest, "version")
-
-      if (rootVersion !== undefined && manifestVersion !== rootVersion) {
-        offenders.push(`${packageDirectory} version ${manifestVersion} must equal ${rootVersion}`)
+    for (const workspace of workspaces) {
+      const manifest = await readManifest(workspace.path)
+      if (manifest.version !== version) {
+        offenders.push(`${workspace.name} version ${manifest.version} must equal ${version}`)
       }
-
-      for (const dependencyGroup of dependencyGroups) {
-        const dependencies = isRecord(manifest[dependencyGroup]) ? manifest[dependencyGroup] : {}
-        for (const [dependencyName, dependencyVersion] of Object.entries(dependencies)) {
-          if (
-            rootVersion !== undefined &&
-            dependencyName.startsWith("@nyc-transit-kit/") &&
-            dependencyVersion !== rootVersion
-          ) {
-            offenders.push(
-              `${packageDirectory} ${dependencyGroup} ${dependencyName}@${dependencyVersion} must equal ${rootVersion}`
-            )
+      for (const group of dependencyGroups) {
+        for (const [name, range] of Object.entries(manifest[group] ?? {})) {
+          if (name.startsWith("@nyc-transit-kit/") && range !== version) {
+            offenders.push(`${workspace.name} ${group} ${name}@${range} must equal ${version}`)
           }
         }
       }
     }
-
     expect(offenders).toEqual([])
   })
 
-  test("classifies immutable release remote state", () => {
-    const missingPackageStates = publishedPackageStates.map((entry) => ({
-      ...entry,
-      state: "missing" as const
-    }))
-    const mixedPackageStates = publishedPackageStates.map((entry, index) => ({
+  it("classifies immutable release remote state", () => {
+    const missing = publishedPackageStates.map((entry) => ({ ...entry, state: "missing" as const }))
+    const mixed = publishedPackageStates.map((entry, index) => ({
       ...entry,
       state: index === 0 ? ("published" as const) : ("missing" as const)
     }))
 
     expect(
-      classifyReleaseState({
-        githubState: "missing",
-        npmStates: missingPackageStates,
-        tag: "v1.2.3"
-      })
-    ).toMatchObject({
-      shouldRelease: true,
-      status: "ready"
-    })
-
+      classifyReleaseState({ githubState: "missing", npmStates: missing, tag: "v1.2.3" })
+    ).toMatchObject({ shouldRelease: true, status: "ready" })
     expect(
       classifyReleaseState({
         githubState: "published",
         npmStates: publishedPackageStates,
         tag: "v1.2.3"
       })
-    ).toMatchObject({
-      shouldRelease: false,
-      status: "complete"
-    })
-
+    ).toMatchObject({ shouldRelease: false, status: "complete" })
     expect(
       classifyReleaseState({
         githubState: "draft",
         npmStates: publishedPackageStates,
         tag: "v1.2.3"
       })
-    ).toMatchObject({
-      shouldRelease: false,
-      status: "partial"
-    })
-
+    ).toMatchObject({ shouldRelease: false, status: "partial" })
     expect(
-      classifyReleaseState({
-        githubState: "missing",
-        npmStates: mixedPackageStates,
-        tag: "v1.2.3"
-      })
-    ).toMatchObject({
-      shouldRelease: false,
-      status: "partial"
-    })
+      classifyReleaseState({ githubState: "missing", npmStates: mixed, tag: "v1.2.3" })
+    ).toMatchObject({ shouldRelease: false, status: "partial" })
   })
 
-  test("keeps release workflow on the shared remote-state guard", async () => {
-    const offenders: Array<string> = []
+  it("keeps the release workflow on the shared remote-state guard", async () => {
     const workflow = await Bun.file(join(rootPath, ".github/workflows/release.yml")).text()
-    const releaseConfig = await readJsonRecord(join(rootPath, "release.config.json"))
-    const targets = Array.isArray(releaseConfig.targets) ? releaseConfig.targets : []
-    const githubTarget = targets.find(
-      (target) => isRecord(target) && target._tag === "GitHubReleaseTarget"
-    )
+    const { targets } = await readReleaseConfig()
+    const githubTarget = targets.find((target) => target._tag === "GitHubReleaseTarget")
+    const offenders: Array<string> = []
 
     if (!workflow.includes("bun run release:remote-state")) {
       offenders.push("release workflow must use the repo-local remote-state guard")
@@ -163,122 +124,104 @@ describe("release policy", () => {
     if (!workflow.includes("--require-complete")) {
       offenders.push("execute job must recheck completed remote state after release failures")
     }
-    if (!isRecord(githubTarget) || githubTarget.draft !== false) {
+    if (githubTarget?.draft !== false) {
       offenders.push("GitHub release target must publish after release environment approval")
     }
-
     expect(offenders).toEqual([])
   })
 
-  test("keeps Effect runtime packages on the beta line and tooling root-only", async () => {
-    const rootManifest = await readJsonRecord(join(rootPath, "package.json"))
-    const workspaces = isRecord(rootManifest.workspaces) ? rootManifest.workspaces : {}
-    const rootCatalog = isRecord(workspaces.catalog) ? workspaces.catalog : {}
-    const rootCatalogs = isRecord(workspaces.catalogs) ? workspaces.catalogs : {}
-    const toolingCatalog = isRecord(rootCatalogs.tooling) ? rootCatalogs.tooling : {}
-    const rootDevDependencies = isRecord(rootManifest.devDependencies)
-      ? rootManifest.devDependencies
-      : {}
+  it("keeps both lockfiles in the format the CI's Bun reads", async () => {
+    // Bun 1.4 writes a new lockfile in format 2, which Bun 1.3.14 rejects as "Unknown lockfile version".
+    const workflow = await Bun.file(join(rootPath, ".github/workflows/ci.yml")).text()
+    expect(workflow).toContain("bun-version: 1.3.14")
+    const formats: Record<string, string | undefined> = {}
+    for (const lockfile of ["bun.lock", "tools/release/bun.lock"]) {
+      const text = await Bun.file(join(rootPath, lockfile)).text()
+      formats[lockfile] = /"lockfileVersion": (\d+)/.exec(text)?.[1]
+    }
+    expect(formats).toEqual({ "bun.lock": "1", "tools/release/bun.lock": "1" })
+  })
+
+  it("keeps Effect on 4.0.6: libraries take it as a peer, the app pins it, tooling stays at the root", async () => {
+    const root = await readManifest(rootPath)
+    const catalog = root.workspaces?.catalog ?? {}
+    const catalogs = root.workspaces?.catalogs ?? {}
+    const tooling = catalogs.tooling ?? {}
+    const rootDevDependencies = root.devDependencies ?? {}
     const offenders: Array<string> = []
 
-    for (const dependencyName of ["effect", "@effect/platform-bun"]) {
-      const version = stringValue(rootCatalog, dependencyName)
-      if (version !== expectedEffectVersion) {
-        offenders.push(`root catalog ${dependencyName}@${version}`)
+    for (const name of ["effect", "@effect/platform-bun", "@effect/vitest"]) {
+      if (catalog[name] !== expectedEffectVersion) {
+        offenders.push(`root catalog ${name}@${catalog[name]}`)
       }
     }
-
-    for (const [dependencyName, version] of Object.entries(rootCatalog)) {
-      if (isEffectToolingPackage(dependencyName)) {
-        offenders.push(`root catalog ${dependencyName} belongs in devDependencies`)
-      } else if (isEffectRuntimePackage(dependencyName) && version !== expectedEffectVersion) {
-        offenders.push(`root catalog ${dependencyName}@${version}`)
+    for (const [name, version] of Object.entries(catalog)) {
+      if (isEffectToolingPackage(name)) {
+        offenders.push(`root catalog ${name} belongs in devDependencies`)
+      } else if (isEffectRuntimePackage(name) && version !== expectedEffectVersion) {
+        offenders.push(`root catalog ${name}@${version}`)
       }
     }
-
-    for (const [dependencyName, expectedVersion] of Object.entries(
-      expectedRootToolingCatalogVersions
-    )) {
-      if (stringValue(toolingCatalog, dependencyName) !== expectedVersion) {
-        offenders.push(`root tooling catalog ${dependencyName}@${toolingCatalog[dependencyName]}`)
+    for (const [name, version] of Object.entries(expectedRootToolingCatalogVersions)) {
+      if (tooling[name] !== version) {
+        offenders.push(`root tooling catalog ${name}@${tooling[name]}`)
       }
     }
-
-    for (const [catalogName, catalog] of Object.entries(rootCatalogs)) {
-      if (!isRecord(catalog)) {
-        continue
-      }
-      for (const dependencyName of Object.keys(catalog)) {
-        if (isEffectToolingPackage(dependencyName)) {
-          offenders.push(`${dependencyName} must not be moved into catalog:${catalogName}`)
+    for (const [catalogName, entries] of Object.entries(catalogs)) {
+      for (const name of Object.keys(entries)) {
+        if (isEffectToolingPackage(name)) {
+          offenders.push(`${name} must not be moved into catalog:${catalogName}`)
         }
       }
     }
-
-    for (const [dependencyName, expectedVersion] of Object.entries(expectedEffectToolingVersions)) {
-      if (rootDevDependencies[dependencyName] !== expectedVersion) {
-        offenders.push(
-          `root devDependencies ${dependencyName}@${rootDevDependencies[dependencyName]}`
-        )
+    for (const [name, version] of Object.entries(expectedEffectToolingVersions)) {
+      if (rootDevDependencies[name] !== version) {
+        offenders.push(`root devDependencies ${name}@${rootDevDependencies[name]}`)
+      }
+    }
+    for (const [name, version] of Object.entries(rootDevDependencies)) {
+      if (isEffectRuntimePackage(name) && version !== "catalog:") {
+        offenders.push(`root devDependencies ${name}@${version} belongs in the workspace catalog`)
+      }
+      if (expectedRootToolingCatalogVersions[name] !== undefined && version !== "catalog:tooling") {
+        offenders.push(`root devDependencies ${name}@${version} must use catalog:tooling`)
       }
     }
 
-    for (const [dependencyName, version] of Object.entries(rootDevDependencies)) {
-      if (isEffectRuntimePackage(dependencyName)) {
-        const allowedRootEffectImport =
-          (dependencyName === "effect" || dependencyName === "@effect/platform-bun") &&
-          version === "catalog:" &&
-          stringValue(rootCatalog, dependencyName) === expectedEffectVersion
-        if (!allowedRootEffectImport) {
+    for (const workspace of workspaces) {
+      const manifest = await readManifest(workspace.path)
+      if (workspace.kind === "package") {
+        if (manifest.peerDependencies?.effect !== expectedEffectPeerRange) {
           offenders.push(
-            `root devDependencies ${dependencyName}@${version} belongs in workspace catalog`
+            `${workspace.name} peerDependencies effect must be ${expectedEffectPeerRange}`
           )
         }
-        continue
-      }
-      if (isEffectToolingPackage(dependencyName) && isCatalogReference(version)) {
-        offenders.push(`root devDependencies ${dependencyName} must stay a literal version`)
-      }
-      if (expectedRootToolingCatalogVersions[dependencyName] !== undefined) {
-        if (version !== "catalog:tooling") {
-          offenders.push(
-            `root devDependencies ${dependencyName}@${version} must use catalog:tooling`
-          )
+        for (const group of ["dependencies", "optionalDependencies"] as const) {
+          for (const name of Object.keys(manifest[group] ?? {})) {
+            if (isEffectRuntimePackage(name)) {
+              offenders.push(`${workspace.name} ${group} ${name}: a library takes Effect as a peer`)
+            }
+          }
         }
-      } else if (isCatalogReference(version)) {
-        offenders.push(
-          `root devDependencies ${dependencyName}@${version} is not an approved catalog reference`
-        )
+      } else if (manifest.dependencies?.effect !== "catalog:") {
+        offenders.push(`${workspace.name} pins effect through the catalog`)
       }
-    }
-
-    for (const packageDirectory of expectedPackages) {
-      const manifestPath = join(packageRoot, packageDirectory, "package.json")
-      const manifest = await readJsonRecord(manifestPath)
-
-      for (const dependencyGroup of dependencyGroups) {
-        const dependencies = isRecord(manifest[dependencyGroup]) ? manifest[dependencyGroup] : {}
-        for (const [dependencyName, version] of Object.entries(dependencies)) {
-          if (isEffectToolingPackage(dependencyName)) {
-            offenders.push(
-              `${packageDirectory} ${dependencyGroup} ${dependencyName} must stay root-only`
-            )
+      for (const group of dependencyGroups) {
+        for (const [name, version] of Object.entries(manifest[group] ?? {})) {
+          if (isEffectToolingPackage(name)) {
+            offenders.push(`${workspace.name} ${group} ${name} must stay root-only`)
           } else if (version === "catalog:tooling") {
-            offenders.push(
-              `${packageDirectory} ${dependencyGroup} ${dependencyName} must not use catalog:tooling`
-            )
+            offenders.push(`${workspace.name} ${group} ${name} must not use catalog:tooling`)
           } else if (
-            isEffectRuntimePackage(dependencyName) &&
-            version !== expectedEffectVersion &&
-            (version !== "catalog:" ||
-              stringValue(rootCatalog, dependencyName) !== expectedEffectVersion)
+            isEffectRuntimePackage(name) &&
+            group !== "peerDependencies" &&
+            version !== "catalog:"
           ) {
-            offenders.push(`${packageDirectory} ${dependencyGroup} ${dependencyName}@${version}`)
+            offenders.push(`${workspace.name} ${group} ${name}@${version}`)
           }
         }
       }
     }
-
     expect(offenders).toEqual([])
   })
 })

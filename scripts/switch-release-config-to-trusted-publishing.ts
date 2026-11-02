@@ -8,11 +8,8 @@ const rootPath = new URL("../", import.meta.url).pathname
 const args = Bun.argv.slice(2)
 const expectedPackages: ReadonlyArray<readonly [string, string]> = [
   ["npm-cli", "@nyc-transit-kit/cli"],
-  ["npm-compat", "@nyc-transit-kit/compat"],
-  ["npm-contracts", "@nyc-transit-kit/contracts"],
   ["npm-fixtures", "@nyc-transit-kit/fixtures"],
   ["npm-mta", "@nyc-transit-kit/mta"],
-  ["npm-nyc-dot", "@nyc-transit-kit/nyc-dot"],
   ["npm-nyc-open-data", "@nyc-transit-kit/nyc-open-data"],
   ["npm-soda3", "@nyc-transit-kit/soda3"]
 ]

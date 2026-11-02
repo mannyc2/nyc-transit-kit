@@ -1,115 +1,105 @@
 # nyc-transit-kit
 
-Effect-native TypeScript toolkit for official NYC and MTA transit data APIs.
-It provides source-first TypeScript packages, a Bun CLI, and Promise compat
-wrappers for consumers that do not want to own an Effect runtime directly.
+Typed access to official NYC and MTA transit data, built on Effect 4. It has a
+SODA3 client for any Socrata domain, MTA GTFS and elevator feeds, curated NYC
+DOT datasets with row schemas checked against real responses, and a Bun CLI
+whose `--json` output is a stable contract.
 
-## Packages
+## Layout
 
-The repository is organized by official API/provider family:
+`apps/` holds what deploys, `packages/` the libraries. Each package follows one
+official provider, and each module is a namespace:
+`import * as Soql from "@nyc-transit-kit/soda3/Soql"`.
 
-- `@nyc-transit-kit/contracts`
-- `@nyc-transit-kit/soda3`
-- `@nyc-transit-kit/mta`
-- `@nyc-transit-kit/nyc-open-data`
-- `@nyc-transit-kit/nyc-dot`
-- `@nyc-transit-kit/cli`
-- `@nyc-transit-kit/compat`
-- `@nyc-transit-kit/fixtures`
+| Package | Modules | Holds |
+| --- | --- | --- |
+| `@nyc-transit-kit/soda3` | `Soda3Client`, `Dataset`, `Discovery`, `Soql`, `Socrata` | SODA3 query and CSV export on any Socrata domain, Discovery search, SoQL built on `effect/sql` Statement |
+| `@nyc-transit-kit/mta` | `GtfsStatic`, `GtfsRealtime`, `ElevatorEscalator`, `BusTime`, `MtaOpenData` | GTFS static and realtime feeds, elevator and escalator outages, Bus Time, MTA datasets on NYS Open Data |
+| `@nyc-transit-kit/nyc-open-data` | `NycDot`, `NycOpenData` | NYC DOT traffic speeds, traffic volume counts and bus lanes with row schemas, and the NYC Open Data domain |
+| `@nyc-transit-kit/fixtures` | `Samples`, `HttpTest` | Real response samples, and an `HttpClient` for tests that records each request |
+| `@nyc-transit-kit/cli` (app) | `Cli`, `Envelope`, `ReleaseManifest` | The `ntk` binary and the schema of its JSON output |
 
-Start with [Getting started](docs/getting-started.md), then use the
-[API reference](docs/api-reference.md) for the full export map. The v0 packages
-publish TypeScript source and are best consumed from Bun or a TypeScript
-toolchain that can compile dependencies. Each release pins one exact Effect 4
-beta; see the [compatibility matrix](docs/getting-started.md#compatibility)
-before installing into an existing Effect app.
+The packages publish TypeScript source; use Bun or a toolchain that compiles
+dependencies. `effect` is a peer dependency:
 
 ```sh
-bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.2.0
-bun add @nyc-transit-kit/mta @nyc-transit-kit/nyc-dot @nyc-transit-kit/compat
+bun add effect@^4.0.6 @nyc-transit-kit/soda3 @nyc-transit-kit/nyc-open-data
 ```
+
+```ts
+import * as NycDot from "@nyc-transit-kit/nyc-open-data/NycDot"
+import * as Dataset from "@nyc-transit-kit/soda3/Dataset"
+import * as Soda3Client from "@nyc-transit-kit/soda3/Soda3Client"
+import * as Soql from "@nyc-transit-kit/soda3/Soql"
+import * as Config from "effect/Config"
+import * as Effect from "effect/Effect"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+import * as Layer from "effect/Layer"
+
+const speeds = Dataset.query(NycDot.datasets["traffic-speeds"], {
+  where: Soql.eq("borough", "Queens"),
+  limit: 10
+})
+
+// Your app reads the token; the library takes it as a value.
+const Soda3Live = Layer.unwrap(
+  Effect.map(Config.Redacted("SOCRATA_APP_TOKEN"), (appToken) => Soda3Client.layer({ appToken }))
+).pipe(Layer.provide(FetchHttpClient.layer))
+
+// Sent as SELECT * WHERE `borough` = 'Queens' LIMIT 10; rows arrive decoded.
+const rows = await Effect.runPromise(speeds.pipe(Effect.provide(Soda3Live)))
+```
+
+SODA3 refuses query and export without a Socrata
+[app token](https://dev.socrata.com/docs/app-tokens). The libraries never read
+the environment: pass the token in. Start with
+[Getting started](docs/getting-started.md).
 
 ## CLI
 
-The published CLI requires Bun at runtime because its npm bin is a Bun-shebang
-wrapper. Install it with Bun and run it through `bunx`. Every command supports
-`--help`; `--json` is the stable machine-readable contract, and dry-run
-commands avoid live provider calls.
+The CLI needs Bun at runtime.
 
 ```sh
 bun add -d @nyc-transit-kit/cli
-bunx ntk --version --json
-bunx ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json --dry-run
-bunx ntk mta gtfs-rt probe --feed alerts-all --json --dry-run
+export SOCRATA_APP_TOKEN=...
+
+bunx ntk nyc-dot dataset query --name traffic-speeds --select "link_name, speed LIMIT 5"
+bunx ntk catalog search --domain data.ny.gov --query subway --limit 5
+bunx ntk mta gtfs-rt probe --feed subway-ace --json
+bunx ntk mta gtfs-rt capture --feed lirr --output lirr.pb --manifest-output lirr.json
+bunx ntk socrata export --domain data.ny.gov --dataset f462-ka72 --output mta.csv --dry-run
 ```
 
-Socrata-backed datasets are SODA3-only. Do not add SODA2 endpoint builders,
-compatibility aliases, or manifest fields.
+- `--json` writes exactly one envelope, `{ ok, data | error, meta }`, to stdout.
+  Readable output is not a contract.
+- `--dry-run` prints the requests a command would send, with the token
+  redacted. It sends nothing and writes nothing.
+- `SOCRATA_APP_TOKEN` is read only by the CLI, as the default for `--app-token`.
+- Files are written beside their destination and renamed, so a failed download
+  leaves nothing behind.
 
-Coverage model: generic SODA3 commands provide broad access to supported
-Socrata domains, provider commands add curated descriptors and defaults, and
-typed adapters are intentionally narrower. See
-[Provider coverage](docs/provider-coverage.md) for the release scope.
-
-## Effect And Promise Imports
-
-Prefer package subpaths for application and package code:
-
-```ts
-import { soda3Layer } from "@nyc-transit-kit/soda3/client"
-import { queryRows } from "@nyc-transit-kit/soda3/query"
-import * as Effect from "effect/Effect"
-
-const program = queryRows({
-  domain: "data.cityofnewyork.us",
-  datasetId: "ycrg-ses3",
-  query: "SELECT *"
-}).pipe(Effect.provide(soda3Layer({ retryTimes: 2 })))
-```
-
-```ts
-import { queryNycDotRows } from "@nyc-transit-kit/compat/nyc-dot"
-
-const rowsPromise = queryNycDotRows({
-  name: "traffic-speeds",
-  query: "SELECT *"
-})
-```
-
-## CLI Configuration
-
-`SOCRATA_APP_TOKEN` is optional and is used only by CLI Socrata-backed
-requests. Core packages still receive explicit config through arguments,
-services, and layers; they do not read environment variables.
-
-```sh
-SOCRATA_APP_TOKEN=<token> bunx ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json
-```
+Socrata access is SODA3 only. Generic commands reach any dataset on any Socrata
+domain; curated datasets add names and row schemas. See
+[Provider coverage](docs/provider-coverage.md) for what is curated and why.
 
 ## Development
 
-The default development loop is Bun-first:
-
 ```sh
 bun install
-bun test
-bun run check
+bun run check        # types, published-source types, Effect diagnostics, Biome, tests, package archives
+bun run test         # @effect/vitest, in Bun
+bun run build:cli    # dist/ntk
+./dist/ntk --version --json
 ```
 
-Common repo CLI surfaces:
+## Docs
 
-```sh
-bun run cli nyc-open-data dataset query --dataset ycrg-ses3 --select "*" --json --dry-run
-bun run cli nyc-dot dataset query --name traffic-speeds --select "*" --json --dry-run
-bun run cli mta gtfs-rt decode --feed alerts-all --json --dry-run
-```
-
-See:
-
-- [Getting started](docs/getting-started.md)
-- [API reference](docs/api-reference.md)
-- [Provider coverage](docs/provider-coverage.md)
-- [Product boundary](docs/product-boundary.md)
-- [Official API map](docs/official-api-map.md)
-- [Implementation plan](docs/implementation-plan.md)
-- [Testing strategy](docs/testing.md)
+- [Getting started](docs/getting-started.md): install, examples, migrating to 0.3.0
+- [API reference](docs/api-reference.md): every export path and CLI command
+- [Provider coverage](docs/provider-coverage.md): what is curated and how coverage is checked
+- [Official API map](docs/official-api-map.md): verified provider facts
+- [Testing](docs/testing.md): `@effect/vitest`, `HttpTest` and `TestClock`
+- [Product boundary](docs/product-boundary.md) and
+  [downstream adapters](docs/downstream-adapters.md)
+- [Release](docs/release.md)
+- [SPEC](SPEC.md): the standing design decisions

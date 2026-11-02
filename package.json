@@ -1,71 +1,70 @@
 {
   "name": "nyc-transit-kit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "workspaces": {
     "packages": [
+      "apps/*",
       "packages/*"
     ],
     "catalog": {
-      "@effect/platform-bun": "4.0.0-beta.92",
-      "effect": "4.0.0-beta.92",
+      "@effect/platform-bun": "4.0.6",
+      "@effect/vitest": "4.0.6",
+      "effect": "4.0.6",
       "gtfs-realtime-bindings": "2.0.0"
     },
     "catalogs": {
       "tooling": {
         "@biomejs/biome": "2.5.0",
         "@types/bun": "1.3.14",
-        "typescript": "6.0.3"
+        "typescript": "6.0.3",
+        "vitest": "5.0.5"
       }
     }
   },
-  "overrides": {
-    "@effect/platform-node-shared": "4.0.0-beta.92"
-  },
   "scripts": {
-    "prepare": "./scripts/prepare-effect.sh && effect-language-service patch",
-    "check": "bun run check:types && bun run check:downstream-strict && bun run check:effect && bun run check:style && bun test && bun run check:package",
-    "check:types": "tsc -b --pretty false --force",
-    "check:downstream-strict": "tsc -p tests/downstream-strict/tsconfig.json --pretty false",
+    "prepare": "effect-language-service patch && bun install --cwd tools/release --frozen-lockfile",
+    "check": "bun run check:types && bun run check:effect && bun run check:style && bun run test && bun run check:package",
+    "check:types": "tsc -p tsconfig.json && tsc -p tsconfig.published.json",
     "check:effect": "effect-language-service diagnostics --project tsconfig.json --format text --strict",
     "check:style": "biome check .",
     "check:style:write": "biome check --write .",
-    "check:package": "bun run tests/package-archives/check-package-archives.ts",
+    "check:package": "bun run scripts/check-package-archives.ts",
     "check:provider-coverage": "bun run scripts/check-provider-coverage-set.ts",
-    "check:npm-stage": "bun run tests/package-archives/check-npm-release-stage.ts",
+    "check:npm-stage": "bun run scripts/check-npm-release-stage.ts",
     "check:release-config": "bun run scripts/check-release-config.ts",
-    "check:release-ci": "bun run scripts/run-ts-release.ts check-ci --config release.config.json --workflow .github/workflows/release.yml",
+    "check:release-ci": "bun run tools/release/run-ts-release.ts check-ci --config release.config.json --workflow .github/workflows/release.yml",
     "check:release-local": "bun run release:version:check && bun run check && bun run build:cli && bun run release:prepare:npm && bun run check:npm-stage && bun run check:release-config && bun run check:release-ci && bun run release:plan",
-    "test": "bun test",
-    "test:watch": "bun test --watch",
-    "cli": "bun run packages/cli/src/main.ts",
-    "build": "bun run --filter '*' build",
-    "build:cli": "bun run packages/cli/scripts/build-binary.ts",
-    "release": "bun run scripts/run-ts-release.ts",
+    "test": "bun --bun vitest run",
+    "test:watch": "bun --bun vitest",
+    "cli": "bun run apps/cli/src/bin.ts",
+    "build:cli": "bun run apps/cli/scripts/build.ts",
+    "release": "bun run tools/release/run-ts-release.ts",
     "release:version": "bun run scripts/sync-release-version.ts",
     "release:version:check": "bun run scripts/sync-release-version.ts --check",
     "release:prepare:npm": "bun run scripts/prepare-npm-release.ts",
     "release:provider-coverage": "bun run scripts/check-provider-coverage-set.ts --out .release/evidence/provider-coverage.json",
-    "release:stage-artifacts": "bun run scripts/run-ts-release.ts stage-artifacts --config release.config.json --format text",
-    "release:plan": "bun run scripts/run-ts-release.ts plan --config release.config.json --format text",
-    "release:plan:json": "bun run scripts/run-ts-release.ts plan --config release.config.json --format json --out .release/evidence/plan.json",
-    "release:doctor": "bun run scripts/run-ts-release.ts doctor --config release.config.json",
-    "release:check-auth": "bun run scripts/run-ts-release.ts check-auth --config release.config.json",
-    "release:check-ci": "bun run scripts/run-ts-release.ts check-ci --config release.config.json --workflow .github/workflows/release.yml",
+    "release:stage-artifacts": "bun run tools/release/run-ts-release.ts stage-artifacts --config release.config.json --format text",
+    "release:plan": "bun run tools/release/run-ts-release.ts plan --config release.config.json --format text",
+    "release:plan:json": "bun run tools/release/run-ts-release.ts plan --config release.config.json --format json --out .release/evidence/plan.json",
+    "release:doctor": "bun run tools/release/run-ts-release.ts doctor --config release.config.json",
+    "release:check-auth": "bun run tools/release/run-ts-release.ts check-auth --config release.config.json",
+    "release:check-ci": "bun run tools/release/run-ts-release.ts check-ci --config release.config.json --workflow .github/workflows/release.yml",
     "release:remote-state": "bun run scripts/check-release-remote-state.ts",
-    "release:validate": "bun run scripts/run-ts-release.ts validate --config release.config.json",
-    "release:run": "bun run scripts/run-ts-release.ts run --config release.config.json",
+    "release:validate": "bun run tools/release/run-ts-release.ts validate --config release.config.json",
+    "release:run": "bun run tools/release/run-ts-release.ts run --config release.config.json",
     "release:trust-publishing": "bun run scripts/switch-release-config-to-trusted-publishing.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:tooling",
-    "@effect/language-service": "0.86.2",
+    "@effect/language-service": "0.87.5",
     "@effect/platform-bun": "catalog:",
-    "@mannyc1/ts-release": "0.0.7",
+    "@effect/vitest": "catalog:",
     "@types/bun": "catalog:tooling",
     "effect": "catalog:",
-    "typescript": "catalog:tooling"
+    "typescript": "catalog:tooling",
+    "vitest": "catalog:tooling"
   },
   "trustedDependencies": [
     "@biomejs/biome",

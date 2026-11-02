@@ -1,992 +1,164 @@
 # nyc-transit-kit SPEC
 
-Last updated: 2026-07-05
+The decisions that stand until someone reverses them here, one line each. The
+code and its tests hold the detail. Last updated 2026-11-01 for 0.3.0.
 
 ## Mission
 
-Build `nyc-transit-kit`: an Effect-native TypeScript monorepo for official NYC
-and MTA transit data APIs.
-
-This is not a 1:1 extraction from another repository. Design the toolkit as its
-own public product, organized around official API/provider families, with a
-small reusable library surface, deterministic fixtures, and a curated CLI.
-
-The toolkit should be useful to:
-
-- transit-data developers who want typed clients for official NYC/MTA data.
-- analysts who want a reliable CLI for probing, querying, and exporting public
-  datasets.
-- downstream applications that want to depend on official API clients without
-  inheriting a product-specific pipeline.
-
-## Non-Negotiable Decisions
-
-1. **Effect-native implementation**
-   - Use `effect/Schema` as the runtime schema source of truth.
-   - Use Effect services/layers for clients and runtime dependencies.
-   - Use typed errors instead of broad thrown `Error` values inside core code.
-   - Use Effect schedules/timeouts/concurrency for retry and resilience.
-   - Use the pinned Effect 4 beta's built-in unstable CLI modules from
-     `effect/unstable/cli/*` for the CLI. Do not install the separate
-     `@effect/cli` package until a release compatible with the Effect 4 beta
-     line exists.
-   - Use `@effect/platform-bun` for Bun filesystem/terminal integration.
-
-2. **Official API/provider package layout**
-   - Package boundaries are based on official APIs and providers, not on a
-     downstream app's internal modules.
-   - The generic Socrata SODA3 client is its own package.
-   - MTA, NYC Open Data, and NYC DOT are separate family packages.
-
-3. **SODA3-only for Socrata-backed datasets**
-   - Support SODA3 query/export/catalog patterns only.
-   - Do not implement SODA2 helpers.
-   - Do not add `/resource/<dataset>.json` builders, compatibility aliases, or
-     fallback URL paths.
-   - Tests must fail if SODA2 endpoint strings or SODA2 manifest fields are
-     introduced.
-
-4. **Bun-first, TypeScript-only**
-   - Use Bun for package management, scripts, tests, and binary compilation.
-   - Do not add pnpm, Python, FastAPI, hosted databases, or VPS assumptions.
-
-5. **Public-package hygiene from day one**
-   - No workspace-private dependencies in publishable package archives.
-   - No `file:` dependencies in publishable packages.
-   - No private paths, source maps with local absolute paths, `.env`, secrets,
-     `node_modules`, or unrelated repo artifacts in package tarballs.
-   - Optimize for tree shaking with subpath exports, internal subpath imports,
-     function-first public APIs, and deep Effect module imports when supported.
-     Package-root exports are compatibility and high-level convenience surfaces,
-     not the only intended import path.
-
-## Reference Docs To Check Before Implementation
-
-Effect APIs move. Before choosing exact APIs, verify current official docs:
-
-- Effect intro: https://effect.website/docs/getting-started/introduction/
-- Effect Schema: https://effect.website/docs/schema/introduction/
-- Effect Platform: https://effect.website/docs/platform/introduction/
-- Effect CLI README: https://github.com/Effect-TS/effect/blob/main/packages/cli/README.md
-- Socrata/SODA3 docs: https://dev.socrata.com/docs/
-- Socrata app tokens: https://dev.socrata.com/docs/app-tokens
-- MTA developer resources: https://www.mta.info/developers
-- MTA open data: https://www.mta.info/open-data
-- NYC Open Data developer docs: https://dev.socrata.com/foundry/data.cityofnewyork.us/
-
-Record any important verified provider facts in `docs/official-api-map.md`.
-
-## Target Monorepo Layout
-
-Use this structure:
-
-```text
-nyc-transit-kit/
-  SPEC.md
-  README.md
-  LICENSE
-  package.json
-  bun.lock
-  tsconfig.base.json
-  biome.jsonc
-
-  docs/
-    official-api-map.md
-    product-boundary.md
-    downstream-adapters.md
-    release.md
-
-  packages/
-    contracts/
-    soda3/
-    mta/
-    nyc-open-data/
-    nyc-dot/
-    cli/
-    compat/
-    fixtures/
-
-  tests/
-    package-archives/
-    architecture/
-```
-
-Compressed public source trees:
-
-```text
-packages/contracts/src: cli.ts descriptors.ts ids.ts index.ts metadata.ts mta.ts release.ts soda3.ts
-packages/soda3/src: catalog.ts client.ts endpoints.ts errors.ts export.ts index.ts metadata.ts query.ts soql.ts transport.ts internal/{decode,transport}.ts
-packages/mta/src: client.ts errors.ts feeds.ts gtfs-realtime.ts gtfs-static.ts index.ts json-direct.ts open-data.ts internal/{decode,open-data-descriptor-records}.ts
-packages/nyc-open-data/src: client.ts descriptors.ts index.ts internal/descriptor-records.ts
-packages/nyc-dot/src: datasets.ts index.ts rows.ts internal/descriptor-records.ts
-packages/cli/src: build-info.ts files.ts index.ts main.ts runtime.ts commands/{mta,nyc-dot,nyc-open-data,root,shared,socrata}.ts
-packages/compat/src: errors.ts index.ts mta.ts nyc-dot.ts nyc-open-data.ts soda3.ts internal/runtime.ts
-packages/fixtures/src: index.ts
-```
-
-## Package Responsibilities
-
-### `packages/contracts`
-
-Shared public contracts implemented with `effect/Schema`.
-
-Owns:
-
-- branded identifiers such as `SocrataDatasetId`, `ApiFamily`, `IsoDate`,
-  `GtfsFeedKind`.
-- SODA3 query/export/catalog request and response schemas.
-- MTA GTFS static and GTFS Realtime probe/result schemas.
-- NYC Open Data and NYC DOT dataset descriptor schemas.
-- CLI JSON success/error envelopes.
-- `CliReleaseManifest` schema.
-- JSON Schema generation helpers, if needed by docs/release tooling.
-
-Does not own:
-
-- HTTP fetch logic.
-- filesystem writes.
-- provider credentials.
-- product-specific transit metrics or analytics.
-
-### `packages/soda3`
-
-Generic Socrata SODA3 client and helpers.
-
-Owns:
-
-- SODA3 query endpoint construction.
-- SODA3 export endpoint construction.
-- catalog search/info helpers.
-- SoQL helper functions.
-- app-token header wiring from explicit config.
-- retry/backoff/timeout behavior using Effect.
-- raw export response/stream access for CLI downloads and range probes.
-- typed provider errors.
-
-Hard rule:
-
-- No SODA2 support. No `/resource/<dataset>.json` strings.
-
-### `packages/mta`
-
-MTA official API clients/contracts.
-
-Owns:
-
-- GTFS static fetch/probe helpers.
-- GTFS Realtime fetch/probe/decode helpers.
-- decoder injection for tests and protocol fixtures.
-- MTA Open Data dataset descriptors for transit datasets.
-- SODA3-backed access to MTA Open Data datasets via `packages/soda3`.
-
-Does not own:
-
-- app-specific route scoring.
-- local database writes.
-- downstream product route briefs or detector logic.
-
-### `packages/nyc-open-data`
-
-NYC Open Data catalog and dataset helpers.
-
-Owns:
-
-- known NYC Open Data domain defaults.
-- catalog/dataset descriptor helpers.
-- SODA3-backed query/export helpers through `packages/soda3`.
-- public fixture descriptors for common datasets used in tests/examples.
-
-Hard rule:
-
-- Socrata-backed access remains SODA3-only.
-
-### `packages/nyc-dot`
-
-NYC DOT official transit/street dataset descriptors and adapters.
-
-Owns:
-
-- DOT dataset descriptors.
-- thin typed adapters for DOT datasets hosted through NYC Open Data.
-- SODA3-backed helpers through `packages/soda3`.
-
-Does not own:
-
-- causal analysis.
-- route performance scoring.
-- geospatial joins beyond simple provider DTO normalization.
-
-### `packages/cli`
-
-Curated public CLI built with Effect 4 beta's built-in unstable CLI modules
-from `effect/unstable/cli/*`.
-
-Owns:
-
-- command tree grouped by official API family.
-- human output and `--json` output.
-- CLI-level config/env reading.
-- CLI-level secret redaction.
-- atomic file downloads.
-- binary version/build metadata output.
-
-Every command must support `--json`.
-
-### `packages/compat`
-
-Optional non-Effect facade for normal Promise-based consumers.
-
-Owns:
-
-- thin Promise wrappers over Effect programs.
-- no independent business logic.
-- no separate retry, schema, or client implementation.
-
-Example shape:
-
-```ts
-// Effect-native API
-const program = Soda3.queryRows(input);
-
-// compat API
-const rows = await querySoda3Rows(input);
-```
-
-It is acceptable to postpone this package until the Effect-native API feels
-stable, but keep the package slot reserved.
-
-### `packages/fixtures`
-
-Tiny public fixtures and test material.
-
-Owns:
-
-- canned SODA3 query responses.
-- canned Socrata catalog responses.
-- tiny GTFS static snippets.
-- tiny GTFS Realtime protobuf samples where licensing permits.
-- example dataset descriptors.
-- expected CLI JSON outputs.
-
-Fixtures must be small, public, and safe to publish.
-
-## Initial Public CLI
-
-Use a single binary. The exact name needs human approval before publish. Until
-then, use `nyc-transit` or `ntk` as a local placeholder.
-
-Initial command set:
-
-```text
-<binary> socrata query \
-  --domain <domain> \
-  --dataset <id> \
-  --select <soql> \
-  --json
-
-<binary> socrata export \
-  --domain <domain> \
-  --dataset <id> \
-  --format csv \
-  --output <path> \
-  --json
-
-<binary> socrata range-probe \
-  --domain <domain> \
-  --dataset <id> \
-  --format csv \
-  --range-end <n> \
-  --json
-
-<binary> catalog search \
-  --domain <domain> \
-  --query <text> \
-  --json
-
-<binary> mta gtfs-static fetch \
-  --url <url> \
-  --output <path> \
-  --json
-
-<binary> mta gtfs-rt probe \
-  --feed <vehicle-positions|trip-updates|alerts> \
-  --json
-
-<binary> nyc-open-data dataset info \
-  --dataset <id> \
-  --json
-
-<binary> nyc-dot dataset info \
-  --name <known-dataset> \
-  --json
-```
-
-CLI requirements:
-
-- `--json` is the stable agent/programmatic contract.
-- human output should be readable but is not the compatibility contract.
-- commands that write files must use temp-file write + atomic rename.
-- write commands should support `--dry-run` where meaningful.
-- secret values must never be printed.
-- CLI may read env vars, but core client packages must receive explicit config.
-
-## Error Model
-
-Core packages should use typed errors. Define public error classes/data types
-with Effect Schema where useful.
-
-Minimum error families:
-
-- `InvalidInputError`
-- `ProviderHttpError`
-- `ProviderContractError`
-- `TimeoutError`
-- `RetryExhaustedError`
-- `DecodeError`
-- `FilesystemError`
-- `UnsupportedDatasetError`
-- `MissingCredentialError`
-
-CLI JSON errors should use a stable envelope:
-
-```ts
-type CliErrorEnvelope = {
-  ok: false;
-  error: {
-    code: string;
-    message: string;
-    provider?: string;
-    retryable?: boolean;
-  };
-};
-```
-
-Success envelopes should include enough metadata for downstream automation:
-
-```ts
-type CliSuccessEnvelope<T> = {
-  ok: true;
-  data: T;
-  meta: {
-    generatedAt: string;
-    apiFamily: string;
-    schemaVersion: string;
-  };
-};
-```
-
-## Implementation Plan
-
-### Step 1: Create project boundary docs
-
-Create:
-
-- `README.md`
-- `docs/product-boundary.md`
-- `docs/official-api-map.md`
-
-`docs/product-boundary.md` must state:
-
-- repo name: `nyc-transit-kit`.
-- package structure by official API/provider family.
-- Effect-native primary API.
-- Promise compat wrappers are optional facades over Effect programs.
-- SODA3-only rule for all Socrata-backed datasets.
-- private downstream product logic is out of scope.
-
-`docs/official-api-map.md` must list:
-
-- Socrata SODA3 generic API.
-- MTA developer resources to support in v0.
-- MTA Open Data surfaces to support in v0.
-- NYC Open Data surfaces to support in v0.
-- NYC DOT dataset surfaces to support in v0.
-- for each API family, whether it is Socrata-backed.
-
-Verify:
-
-```sh
-test -f docs/product-boundary.md
-test -f docs/official-api-map.md
-```
-
-### Step 2: Scaffold the monorepo
-
-Create root config:
-
-- `package.json`
-- `tsconfig.base.json`
-- `biome.jsonc`
-- `.gitignore`
-- `LICENSE`
-
-Root `package.json` should be private and Bun-first:
-
-```json
-{
-  "name": "nyc-transit-kit",
-  "private": true,
-  "type": "module",
-  "workspaces": ["packages/*"],
-  "scripts": {
-    "check": "bun run check:types && bun run check:style && bun test && bun run check:package",
-    "check:types": "tsc -b packages/*",
-    "check:style": "biome check .",
-    "check:style:write": "biome check --write .",
-    "check:package": "bun run tests/package-archives/check-package-archives.ts",
-    "cli": "bun run packages/cli/src/main.ts",
-    "build": "bun run packages/cli/scripts/build.ts",
-    "build:cli": "bun run packages/cli/scripts/build-binary.ts"
-  }
-}
-```
-
-Exact scripts may change, but the root must have one-command checks.
-
-Add dependencies:
-
-- `effect`
-- `@effect/platform`
-- `@effect/platform-bun`
-- `@effect/platform-node` only if uncompiled Node runtime is supported.
-- `typescript`
-- `@biomejs/biome`
-
-Pin exact Effect-related versions at first. Do not use broad ranges until
-upgrade tests exist.
-
-Verify:
-
-```sh
-bun install
-bun run check:types
-bun test
-bun run check:style
-```
-
-Expected: all commands exit 0.
-
-### Step 3: Implement `packages/contracts`
-
-Create package:
-
-```text
-packages/contracts/
-  package.json
-  tsconfig.json
-  src/
-    cli.ts
-    descriptors.ts
-    ids.ts
-    index.ts
-    metadata.ts
-    mta.ts
-    release.ts
-    soda3.ts
-  test/
-    ids.test.ts
-    soda3.test.ts
-    cli.test.ts
-```
-
-Rules:
-
-- Use `effect/Schema`.
-- Export explicit named values only.
-- No wildcard barrels.
-- No network, filesystem, CLI, or provider SDK logic.
-
-Tests:
-
-- valid/invalid Socrata dataset IDs.
-- valid/invalid API-family IDs.
-- SODA3 endpoint/request schemas decode.
-- CLI success/error envelopes decode.
-- SODA2-like endpoint fields are rejected.
-
-Verify:
-
-```sh
-bun test packages/contracts
-bun run check:types
-```
-
-Expected: all pass.
-
-### Step 4: Implement `packages/soda3`
-
-Create package:
-
-```text
-packages/soda3/
-  package.json
-  tsconfig.json
-  src/
-    catalog.ts
-    client.ts
-    endpoints.ts
-    errors.ts
-    export.ts
-    index.ts
-    metadata.ts
-    query.ts
-    soql.ts
-    transport.ts
-    internal/
-      decode.ts
-      transport.ts
-  test/
-    client.test.ts
-    catalog.test.ts
-    endpoints.test.ts
-    soql.test.ts
-```
-
-Implementation requirements:
-
-- Use Effect services/layers for fetch/config/clock.
-- Accept app token explicitly through config/service.
-- Do not read env vars in `packages/soda3`.
-- Implement query/export/catalog helpers.
-- Implement retry/backoff/timeout through Effect.
-- Return typed errors.
-- Provide tests with injected fetch.
-- Keep raw export response access available.
-- Hard-fail tests if `/resource/` appears in package source.
-
-Required test cases:
-
-- query URL/body uses SODA3.
-- export URL/body uses SODA3.
-- catalog search parses fixture.
-- app token sent in header when provided.
-- app token not printed/redacted in errors.
-- transient failures retry.
-- retry exhaustion returns typed error.
-- range headers are forwarded for export probes.
-- `/resource/` scan returns zero matches.
-
-Verify:
-
-```sh
-bun test packages/soda3
-bun run check:types
-rg -n "/resource/|SODA2|soda2" packages/soda3/src && exit 1 || true
-```
-
-Expected: tests pass; scan finds no forbidden source matches.
-
-### Step 5: Implement `packages/mta`
-
-Create package:
-
-```text
-packages/mta/
-  package.json
-  tsconfig.json
-  src/
-    client.ts
-    errors.ts
-    feeds.ts
-    gtfs-realtime.ts
-    gtfs-static.ts
-    index.ts
-    json-direct.ts
-    open-data.ts
-    internal/
-      decode.ts
-      open-data-descriptor-records.ts
-  test/
-    gtfs-static.test.ts
-    gtfs-realtime.test.ts
-    open-data.test.ts
-```
-
-Implementation requirements:
-
-- GTFS static fetch/probe helpers.
-- GTFS Realtime fetch/probe/decode helpers.
-- decoder injection for tests.
-- MTA Open Data dataset descriptors.
-- Socrata-backed MTA Open Data access delegates to `packages/soda3`.
-- No route scoring, analytics, local DB, or downstream product logic.
-
-Verify:
-
-```sh
-bun test packages/mta
-bun run check:types
-rg -n "/resource/|SODA2|soda2" packages/mta/src && exit 1 || true
-```
-
-Expected: tests pass; no forbidden SODA2 source strings.
-
-### Step 6: Implement `packages/nyc-open-data`
-
-Create package:
-
-```text
-packages/nyc-open-data/
-  package.json
-  tsconfig.json
-  src/
-    client.ts
-    descriptors.ts
-    index.ts
-    internal/
-      descriptor-records.ts
-  test/
-    datasets.test.ts
-    catalog.test.ts
-```
-
-Implementation requirements:
-
-- known domain defaults.
-- dataset descriptor helpers.
-- SODA3-backed query/export via `packages/soda3`.
-- no SODA2 helpers.
-
-Verify:
-
-```sh
-bun test packages/nyc-open-data
-bun run check:types
-rg -n "/resource/|SODA2|soda2" packages/nyc-open-data/src && exit 1 || true
-```
-
-Expected: tests pass; no forbidden SODA2 source strings.
-
-### Step 7: Implement `packages/nyc-dot`
-
-Create package:
-
-```text
-packages/nyc-dot/
-  package.json
-  tsconfig.json
-  src/
-    datasets.ts
-    index.ts
-    rows.ts
-    internal/
-      descriptor-records.ts
-  test/
-    datasets.test.ts
-```
-
-Implementation requirements:
-
-- DOT dataset descriptors.
-- thin DTO adapters for common DOT public datasets.
-- SODA3-backed query/export through `packages/soda3` where hosted on NYC Open
-  Data.
-- no geospatial analysis beyond simple provider DTO normalization.
-
-Verify:
-
-```sh
-bun test packages/nyc-dot
-bun run check:types
-rg -n "/resource/|SODA2|soda2" packages/nyc-dot/src && exit 1 || true
-```
-
-Expected: tests pass; no forbidden SODA2 source strings.
-
-### Step 8: Implement `packages/fixtures`
-
-Create package:
-
-```text
-packages/fixtures/
-  package.json
-  README.md
-  soda3/
-  mta/
-  nyc-open-data/
-  nyc-dot/
-```
-
-Rules:
-
-- Fixtures must be small.
-- Fixtures must be public or synthetic.
-- Do not commit full raw datasets.
-- Do not commit secrets.
-- Document source and license/provenance where fixtures are copied from public
-  providers.
-
-Verify:
-
-```sh
-bun test packages/fixtures
-bun run tests/architecture/check-fixtures.ts
-```
-
-Expected: fixtures are small and contain no secret-like content.
-
-### Step 9: Implement `packages/cli`
-
-Create package:
-
-```text
-packages/cli/
-  package.json
-  src/
-    build-info.ts
-    files.ts
-    index.ts
-    main.ts
-    runtime.ts
-    commands/
-      mta.ts
-      nyc-dot.ts
-      nyc-open-data.ts
-      root.ts
-      shared.ts
-      socrata.ts
-  test/
-    cli.test.ts
-  scripts/
-    build.ts
-    build-binary.ts
-```
-
-Implementation requirements:
-
-- Use `effect/unstable/cli/*` from the pinned Effect 4 beta. Do not install the
-  separate `@effect/cli` package while it peers the Effect 3 line.
-- Use `@effect/platform-bun`.
-- Every command supports `--json`.
-- CLI may read env vars such as `SOCRATA_APP_TOKEN`.
-- Core client packages must not read env vars.
-- Downloads use temp-file + atomic rename.
-- `--version --json` reports version, schema version, git SHA, and build
-  target.
-
-Verify:
-
-```sh
-bun run cli -- --help
-bun run cli -- socrata query --help
-bun run cli -- socrata range-probe --domain data.ny.gov --dataset kufs-yh3x --format csv --range-end 63 --json --dry-run
-bun run cli -- mta gtfs-rt probe --feed vehicle-positions --json --dry-run
-bun test packages/cli
-```
-
-Expected: help renders; dry-run JSON outputs parse through contract schemas;
-tests pass.
-
-### Step 10: Implement `packages/compat`
-
-Create package:
-
-```text
-packages/compat/
-  package.json
-  src/
-    errors.ts
-    index.ts
-    mta.ts
-    nyc-dot.ts
-    nyc-open-data.ts
-    soda3.ts
-    internal/
-      runtime.ts
-  test/
-    compat.test.ts
-```
-
-Rules:
-
-- Only Promise wrappers over Effect programs.
-- No duplicate endpoint construction.
-- No duplicate retry loops.
-- No duplicate schema definitions.
-
-Verify:
-
-```sh
-bun test packages/compat
-bun run check:types
-```
-
-Expected: tests pass; wrapper functions call underlying Effect programs.
-
-### Step 11: Add architecture and package archive checks
-
-Add tests under:
-
-```text
-tests/architecture/
-tests/package-archives/
-```
-
-Required checks:
-
-- no wildcard package barrels.
-- packages with multiple public modules expose subpath exports.
-- internal package code uses subpath imports instead of package-root barrels.
-- source imports Effect modules through deep `effect/<Module>` paths when those
-  modules are available.
-- no package imports downstream app internals.
-- core packages do not read `process.env`.
-- only `packages/cli` reads CLI env vars.
-- no SODA2 endpoint support.
-- package archives contain no:
-  - `workspace:`
-  - `file:`
-  - `node_modules`
-  - `.env`
-  - `.github`
-  - private absolute paths
-  - source maps with private paths
-  - unrelated repo artifacts
-
-Verify:
-
-```sh
-bun run check:package
-bun test tests/architecture
-```
-
-Expected: all pass.
-
-### Step 12: Add binary build and release manifest
-
-Implement:
-
-- `packages/contracts/src/release.ts` with `CliReleaseManifest`.
-- `packages/cli/scripts/build-binary.ts`.
-- `docs/release.md`.
-
-First release target can be a local dry run only. Do not publish yet.
-
-Required manifest fields:
-
-```ts
-type CliReleaseManifest = {
-  manifestVersion: 1;
-  packageName: string;
-  version: string;
-  schemaVersion: string;
-  schemaCommit: string;
-  generatedSourceCommit: string;
-  builtAt: string;
-  artifacts: Array<{
-    platform: "darwin" | "linux" | "win32";
-    arch: "arm64" | "x64";
-    libc?: "glibc" | "musl";
-    url: string;
-    sha256: string;
-    size: number;
-    signed: boolean;
-    notarized?: boolean;
-  }>;
-};
-```
-
-Verify:
-
-```sh
-bun run build:cli
-./dist/<binary> --version --json
-bun run check:package
-```
-
-Expected: binary runs and version JSON validates.
-
-### Step 13: Document downstream adapters
-
-Create `docs/downstream-adapters.md`.
-
-It should explain how downstream projects can consume the toolkit without
-making their product-specific code part of this repo.
-
-Include:
-
-- import examples for Effect-native API.
-- import examples for Promise compat API.
-- guidance for replacing existing local source clients.
-- what downstreams should keep local: analytics, DB projections, route scoring,
-  detector logic, product-specific briefs, app-specific UI.
-
-Verify:
-
-```sh
-test -f docs/downstream-adapters.md
-```
-
-Expected: file exists and does not mention private paths as required inputs.
-
-## Done Criteria
-
-All must be true:
-
-- `nyc-transit-kit` is a standalone monorepo.
-- package layout is organized by official API/provider family.
-- Effect is the implementation model across contracts, clients, and CLI.
-- Socrata-backed datasets support SODA3 only.
-- all packages have tests.
-- all CLI commands support `--json`.
-- default tests are fixture-backed and do not require live network.
-- package archive checks pass.
-- CLI binary builds and reports version JSON.
-- docs explain product boundary, official API map, release process, and
-  downstream adapters.
-
-Verification:
-
-```sh
-bun install
-bun run check:types
-bun run check:style
-bun test
-bun run check:package
-bun run build:cli
-./dist/<binary> --version --json
-```
-
-Expected: all commands exit 0.
-
-## STOP Conditions
-
-Stop and report back if:
-
-- A needed official API cannot be verified from official docs.
-- Supporting a provider requires SODA2.
-- A package starts mirroring a downstream app's internal modules.
-- `@bp/*` or any downstream app workspace dependency becomes necessary.
-- a core package needs to read `process.env`.
-- default tests require live network.
-- fixtures would require committing a large raw dataset.
-- package archive audit finds secrets, local absolute paths, `workspace:`,
-  `file:`, or unrelated repo artifacts.
-- Effect CLI/platform APIs cannot support Bun after pinning tested versions.
-- the public CLI starts growing private product verbs such as detector runs,
-  route scoring, D1/R2 publish, route briefs, or document extraction.
-
-## Deferred Work
-
-Do not do these in v0 unless explicitly approved:
-
-- npm publication.
-- Homebrew tap.
-- PyPI wheels.
-- Windows package managers.
-- browser bundle support beyond pure helper modules.
-- hosted services.
-- live-source CI.
-- app-specific transit analytics.
-
-## Notes For The First Agent
-
-Start with `docs/product-boundary.md` and `docs/official-api-map.md`. Do not
-write much code until the API family map and SODA3-only policy are committed.
-
-Then scaffold the monorepo and implement `packages/contracts` plus
-`packages/soda3` first. The rest of the packages should depend on those rather
-than inventing parallel HTTP or schema layers.
-
-Keep the first pass small. A boring, well-tested SODA3 client plus one CLI
-command is a better foundation than a broad but leaky toolkit.
+Typed, Effect-native access to official NYC and MTA transit data: libraries for
+developers, a CLI for analysts and agents, and official clients that downstream
+apps can depend on without inheriting anyone's product pipeline.
+
+## Layout
+
+- `apps/` holds what deploys: `apps/cli`, the `ntk` binary. `packages/` holds
+  libraries. An app may depend on packages; a package never depends on an app.
+- Packages follow the official provider. `soda3` is Socrata on any domain:
+  SODA3, Discovery and SoQL. `mta` is the MTA's feeds and its datasets on NYS
+  Open Data. `nyc-open-data` is NYC Open Data, NYC DOT included. `fixtures` is
+  real samples and the HTTP test layer.
+- A schema lives in the module of the provider that defines it. There is no
+  shared contracts package.
+- A module is one PascalCase file, imported as a namespace:
+  `import * as Soql from "@nyc-transit-kit/soda3/Soql"`. Each package's
+  `index.ts` re-exports its modules as namespaces, and nothing else.
+
+## Sources
+
+- Socrata access is SODA3 only: `query.json`, `export.csv` and the Discovery
+  API. No SODA2, no `/resource/` URLs, no fallbacks. An architecture test fails
+  on either string.
+- SODA3 query and export refuse requests without an app token, so
+  `Soda3Client.layer` requires one. Discovery needs none.
+- SoQL is built as `effect/sql` Statement fragments and compiled to text with
+  every value written as a SoQL literal. SODA3 `parameters` bind only in
+  parameterized views, and `:name` in SoQL names a system column.
+- A curated dataset carries the schema of one full row, checked against real
+  rows. Any other dataset is reachable by id through `soda3`.
+- Provider facts that took a live request to learn go in
+  `docs/official-api-map.md`, dated.
+
+## Effect
+
+- Effect 4.0.6 stable. Libraries take `effect` as a peer (`^4.0.6`) so an app
+  never loads two copies; the CLI pins it exactly.
+- The installed `node_modules/effect` is the API authority: its `AGENTS.md` and
+  declarations, not a vendored checkout or memory of the betas.
+- Libraries require `HttpClient` and choose no transport, retry or timeout.
+  Callers compose `HttpClient.retryTransient`, `Effect.retry` and
+  `Effect.timeout`.
+- Libraries take values, never the environment: no `process.env`, `Config` or
+  `ConfigProvider` outside `apps/cli`.
+- Errors are `Schema.TaggedError`s that keep the provider's own sentence, such as
+  Socrata's "This request must be authenticated or have an application token".
+- Service keys are `@nyc-transit-kit/<workspace>/<ClassName>`.
+- The lint guards in `tests/architecture/package-boundaries.test.ts` are the
+  design guide's table: no `as unknown as`, no wall-clock reads, no module `let`,
+  no `Effect.promise`, no `new Error`, no `Effect.run*`, no global `fetch`.
+
+## CLI
+
+- One binary, `ntk`, on `effect/cli`. No hand-rolled argv parsing.
+- `--json` writes exactly one envelope to stdout, `--help` included. Readable
+  output is not a contract.
+- `schemaVersion` changes whenever the envelope or an error code changes; the
+  package version moves on its own.
+- Error codes are a closed table in `apps/cli/src/Output.ts`. A new error type
+  does not compile until it has a code.
+- Files are streamed to `<path>.partial` and renamed. A failed run leaves no
+  file and touches no destination.
+- `--dry-run` swaps in an HttpClient that records and a FileSystem that writes
+  nothing. The same command code runs; tokens print as `<redacted>`.
+- The CLI retries transient failures (network, 408, 429, 5xx) twice and honours
+  `Retry-After`. It sends no trace headers to providers.
+- The CLI is the only reader of `SOCRATA_APP_TOKEN`.
+
+## Packages and release
+
+- Every public module of a package is a subpath export. Sibling packages are
+  imported by subpath, Effect by module (`effect/Effect`).
+- Packages are source-first: exports point at `.ts`. Moving to built JS is a
+  separate decision.
+- Packed manifests contain no `workspace:`, `catalog:`, `file:` or local paths.
+  Internal dependencies are literal release versions.
+- The CLI's npm bin is `src/bin.ts`, run by Bun through its shebang.
+- Releases go through the reviewed `release.yml` run with npm trusted
+  publishing, never on a bare tag push.
+- The release runner lives in `tools/release` with its own lockfile.
+  `ts-release` 0.0.7 is built on an Effect beta and crashes when mixed with
+  4.0.6. Moving to `ts-release` 0.4, which peers Effect 4.0, retires it.
+
+## Testing
+
+- Tests are `@effect/vitest`, run in Bun by `bun --bun vitest run`. Effect code
+  is tested with `it.effect`, which supplies `TestClock` and `TestConsole`.
+- HTTP is tested through `HttpTest.layer`, an `HttpClient` built from a handler
+  that records every request. Code under test keeps its real client.
+- Time is tested with `TestClock`: backoff and `Retry-After` are asserted by
+  moving the clock, never by sleeping.
+- Samples are real responses, cut down. Never hand-write one: a made-up row
+  matches a made-up schema.
+- A fake refuses what the provider refuses. Without a token, `HttpTest.soda3`
+  answers with Socrata's real 403; for `export.json`, `export.geojson` and
+  paging with `orderingSpecifier: "discard"`, with SODA3's real 406 and 400.
+- Tests run the real component. The CLI test drives `Cli.run` with test Stdio,
+  Console, environment and HTTP.
+- Each fix gets a mutation check: undo it and watch a test fail.
+
+## Out of scope
+
+- Product analytics, route scoring, detectors, briefs, hosted pipelines and app
+  UI stay downstream; see `docs/product-boundary.md`.
+- Mirroring every NYC Open Data dataset as curated constants. Generic SODA3
+  access already covers the domain.
+- A Promise facade. `Effect.runPromise` at the caller's edge is one line, and a
+  second API doubles every change.
+- Hashing every download. That needs a streaming design first.
+- A fetch-level token helper. `Soda3Client.layer` already takes the token.
+
+## Waiting on product sign-off
+
+Each of these removes published surface, and there is no evidence about its
+users either way. None happens without a yes.
+
+- Drop the SoQL window helpers: `Soql.monthWindow`, `Soql.dateWindow`,
+  `Soql.timestampRange`, `Soql.monthRange` and `Soql.yearMonthRange`.
+- Drop `ntk socrata range-probe`.
+- Collapse the per-provider `dataset` command trees into `ntk socrata`.
+- Drop the typed row schemas for curated datasets.
+- Drop GTFS-realtime capture.
+- Deprecate `@nyc-transit-kit/compat`, `@nyc-transit-kit/contracts` and
+  `@nyc-transit-kit/nyc-dot` on npm. They left the workspace in 0.3.0; 0.2.0
+  stays installable.
+
+## Reversed in 0.3.0
+
+- The CLI moved from `packages/cli` to `apps/cli`: it deploys, and nothing
+  depends on it.
+- `@nyc-transit-kit/contracts` dissolved into the provider modules that own each
+  schema, and `@nyc-transit-kit/nyc-dot` became `NycDot` in `nyc-open-data`: one
+  package per provider, not per publisher.
+- The hand-written SoQL builder became `effect/sql` Statement fragments. Its
+  `:name` placeholders asked SODA3 to bind parameters it binds only in
+  parameterized views; values are now SoQL literals.
+- `bun test` became `@effect/vitest`, `answeringFetch` became `HttpTest.layer`,
+  and the retry test that slept through real backoff moves `TestClock` instead.
+- Kebab-case modules (`soql.ts`, `gtfs-realtime.ts`) became PascalCase
+  namespaces (`Soql`, `GtfsRealtime`), and prefixed names lost their prefix:
+  `soqlEq` is `Soql.eq`, `decodeFeedMessage` is `GtfsRealtime.decode`.
+- A curated `Dataset` is a `DatasetRef`: its id is `datasetId`, not `id`.
+- The CLI's npm bin wrappers, which imported a `main` that did not exist, are
+  gone; the bin is `src/bin.ts`.
+- The `GtfsRealtimeDecoder` service and its `Passthrough` layer became one
+  function, `GtfsRealtime.decode`. Tests decode real feed bytes instead of
+  passing them through.
+- The hand-written fixtures, once "left alone", became real responses. The old
+  ones hid wrong row field names and the `null` attribution that real
+  Discovery results carry and the old schema refused.
+- `effect` moved from an exact dependency to a peer, as recorded when 4.0
+  stabilised.
+- Descriptor metadata (`lastVerified`, `tags`, `adapterStatus`) is gone.
+  Provenance belongs to git and CI, not to constants.
+- Package-level retry and timeout options (`retryTimes` and the like) are gone.
+  Callers compose them.
+- `ntk mta gtfs-rt decode` now prints every entity; it used to repeat `probe`.

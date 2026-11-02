@@ -1,224 +1,271 @@
-import { describe, expect, test } from "bun:test"
 import { readdir } from "node:fs/promises"
-import { basename, extname, join } from "node:path"
+import { basename, join } from "node:path"
+import { describe, expect, it } from "@effect/vitest"
 import {
-  expectedPackages,
-  exportEntries,
-  packageCodeFiles,
-  packagePublicSourceFiles,
-  packageRoot,
-  readJsonRecord,
-  rootImportPattern,
+  allowedInternalDependencies,
+  apps,
+  codeFiles,
+  display,
+  moduleNames,
+  packages,
+  readManifest,
   rootPath,
-  soda3GuardExtensions,
-  sourceExtensions,
-  subpathExportPackages,
-  walkFiles
+  walkFiles,
+  workspaces
 } from "./helpers"
 
-describe("package architecture", () => {
-  test("contains every planned package slot", async () => {
-    const entries = await readdir(packageRoot, { withFileTypes: true })
-    const packages = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+const directories = async (path: string) =>
+  (await readdir(path, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .toSorted()
 
-    expect(packages.sort()).toEqual(expectedPackages.toSorted())
-  })
-
-  test("keeps legacy Socrata endpoint support out of source, manifests, and fixtures", async () => {
-    const files = (
-      await Promise.all(
-        expectedPackages.map((packageDirectory) => walkFiles(join(packageRoot, packageDirectory)))
-      )
-    )
-      .flat()
-      .filter((file) => !file.includes("/dist/"))
-      .filter((file) => !file.includes("/test/"))
-      .filter((file) => soda3GuardExtensions.has(extname(file)) || file.endsWith("package.json"))
+describe("layout", () => {
+  it("apps deploy and packages are libraries", async () => {
+    expect(await directories(join(rootPath, "apps"))).toEqual(apps.toSorted())
+    expect(await directories(join(rootPath, "packages"))).toEqual(packages.toSorted())
     const offenders: Array<string> = []
-
-    for (const file of files) {
-      const source = await Bun.file(file).text()
-      if (/\/resource\/|soda2/i.test(source)) {
-        offenders.push(file.replace(rootPath, ""))
+    for (const workspace of workspaces) {
+      const manifest = await readManifest(workspace.path)
+      if (workspace.kind === "app" && manifest.bin === undefined) {
+        offenders.push(`${workspace.name}: an app has a bin`)
+      }
+      if (workspace.kind === "package" && manifest.bin !== undefined) {
+        offenders.push(`${workspace.name}: a library has no bin`)
       }
     }
-
     expect(offenders).toEqual([])
   })
 
-  test("does not use wildcard barrels in package entrypoints", async () => {
+  it("names modules in PascalCase, and each test after the module it tests", async () => {
     const offenders: Array<string> = []
-
-    for (const packageDirectory of expectedPackages) {
-      const entrypoint = join(packageRoot, packageDirectory, "src", "index.ts")
-      const source = await Bun.file(entrypoint).text()
-      if (/export\s+\*\s+from/.test(source)) {
-        offenders.push(entrypoint.replace(rootPath, ""))
+    for (const workspace of workspaces) {
+      const modules = new Set(await moduleNames(workspace))
+      for (const file of await codeFiles(workspace, ["src"])) {
+        const name = basename(file)
+        if (name !== "index.ts" && name !== "bin.ts" && !/^[A-Z][A-Za-z0-9]*\.ts$/.test(name)) {
+          offenders.push(`${display(file)}: module file names are PascalCase`)
+        }
       }
-    }
-
-    expect(offenders).toEqual([])
-  })
-
-  test("exposes subpath exports for package source modules", async () => {
-    const offenders: Array<string> = []
-
-    for (const packageDirectory of subpathExportPackages) {
-      const packageDirectoryPath = join(packageRoot, packageDirectory)
-      const manifest = await readJsonRecord(join(packageDirectoryPath, "package.json"))
-      const exportedSubpaths = new Set(
-        exportEntries(manifest)
-          .map((entry) => entry.key)
-          .filter((key) => key !== ".")
-      )
-      const sourceFiles = await packagePublicSourceFiles(packageDirectoryPath)
-
-      for (const file of sourceFiles) {
-        const expectedSubpath = `./${basename(file, extname(file))}`
-        if (!exportedSubpaths.has(expectedSubpath)) {
-          offenders.push(`${packageDirectory}: missing export ${expectedSubpath}`)
+      for (const file of await codeFiles(workspace, ["test"])) {
+        const tested = basename(file).match(/^([A-Z][A-Za-z0-9]*)\.test\.ts$/)?.[1]
+        if (tested === undefined || !modules.has(tested)) {
+          offenders.push(`${display(file)}: a test is named after a module of src`)
         }
       }
     }
-
     expect(offenders).toEqual([])
   })
 
-  test("keeps package export targets real and publishable", async () => {
+  it("keeps SODA2 endpoints out of code, manifests and samples", async () => {
     const offenders: Array<string> = []
-
-    for (const packageDirectory of expectedPackages) {
-      const packageDirectoryPath = join(packageRoot, packageDirectory)
-      const manifest = await readJsonRecord(join(packageDirectoryPath, "package.json"))
-      const filesValue = manifest.files
-      const files = Array.isArray(filesValue)
-        ? filesValue.filter((entry): entry is string => typeof entry === "string")
-        : []
-
-      for (const { key, targets } of exportEntries(manifest)) {
-        for (const target of targets) {
-          if (!target.startsWith("./")) {
-            offenders.push(`${packageDirectory}: export ${key} target ${target} is not relative`)
-            continue
-          }
-
-          if (target.includes("/src/internal/")) {
-            offenders.push(
-              `${packageDirectory}: export ${key} target ${target} points at private internal source`
-            )
-          }
-
-          const archivePath = target.slice(2)
-          const targetExists = await Bun.file(join(packageDirectoryPath, archivePath)).exists()
-          if (!targetExists) {
-            offenders.push(`${packageDirectory}: export ${key} target ${target} does not exist`)
-          }
-
-          const includedByFiles = files.some(
-            (entry) => archivePath === entry || archivePath.startsWith(`${entry}/`)
-          )
-          if (!includedByFiles) {
-            offenders.push(`${packageDirectory}: export ${key} target ${target} is outside files`)
-          }
-        }
-      }
-    }
-
-    expect(offenders).toEqual([])
-  })
-
-  test("uses subpath imports for internal package dependencies", async () => {
-    const packagesWithSubpaths = new Set(
-      [...subpathExportPackages].map((packageDirectory) => `@nyc-transit-kit/${packageDirectory}`)
-    )
-    const offenders: Array<string> = []
-
-    for (const packageDirectory of expectedPackages) {
-      for (const file of await packageCodeFiles(packageDirectory)) {
-        const source = await Bun.file(file).text()
-        for (const match of source.matchAll(rootImportPattern)) {
-          const packageName = match[1]
-          if (packageName !== undefined && packagesWithSubpaths.has(packageName)) {
-            offenders.push(`${file.replace(rootPath, "")}: imports ${packageName} root`)
-          }
-        }
-      }
-    }
-
-    expect(offenders).toEqual([])
-  })
-
-  test("uses deep Effect module imports in package source", async () => {
-    const offenders: Array<string> = []
-
-    for (const packageDirectory of expectedPackages) {
-      for (const file of await packageCodeFiles(packageDirectory)) {
-        const source = await Bun.file(file).text()
-        if (/from\s+["']effect["']/.test(source)) {
-          offenders.push(file.replace(rootPath, ""))
-        }
-      }
-    }
-
-    expect(offenders).toEqual([])
-  })
-
-  test("keeps the CLI on Effect command parsing", async () => {
-    const forbiddenNames = [
-      "parseOptions",
-      "commandTokensFrom",
-      "sameCommandPath",
-      "CommandDefinition"
-    ]
-    const forbiddenPattern = new RegExp(`\\b(${forbiddenNames.join("|")})\\b`)
-    const offenders: Array<string> = []
-    const files = (await walkFiles(join(packageRoot, "cli", "src"))).filter((file) =>
-      sourceExtensions.has(extname(file))
-    )
-
-    for (const file of files) {
-      const source = await Bun.file(file).text()
-      if (forbiddenPattern.test(source)) {
-        offenders.push(file.replace(rootPath, ""))
-      }
-    }
-
-    expect(offenders).toEqual([])
-  })
-
-  test("keeps environment reads out of core packages", async () => {
-    const corePackages = expectedPackages.filter((packageDirectory) => packageDirectory !== "cli")
-    const offenders: Array<string> = []
-
-    for (const packageDirectory of corePackages) {
-      const files = (await walkFiles(join(packageRoot, packageDirectory, "src"))).filter((file) =>
-        sourceExtensions.has(extname(file))
+    for (const workspace of workspaces) {
+      const files = (await walkFiles(workspace.path)).filter(
+        (file) => !file.includes("/test/") && /\.(ts|json|md)$/.test(file)
       )
       for (const file of files) {
-        const source = await Bun.file(file).text()
-        if (/\bprocess\.env\b/.test(source)) {
-          offenders.push(file.replace(rootPath, ""))
+        if (/\/resource\/|soda2/i.test(await Bun.file(file).text())) {
+          offenders.push(display(file))
         }
       }
     }
+    expect(offenders).toEqual([])
+  })
+})
 
+describe("public modules", () => {
+  it("every module of a package is a subpath export, and the app exports what it lists", async () => {
+    const offenders: Array<string> = []
+    for (const workspace of workspaces) {
+      const manifest = await readManifest(workspace.path)
+      const exported = Object.keys(manifest.exports ?? {}).filter((key) => key !== ".")
+      if (workspace.kind === "package") {
+        const expected = (await moduleNames(workspace)).map((name) => `./${name}`)
+        if (exported.toSorted().join() !== expected.join()) {
+          offenders.push(`${workspace.name}: exports ${exported} instead of ${expected}`)
+        }
+      }
+      // index.ts re-exports each public module under its own name, and nothing else.
+      const index = await Bun.file(join(workspace.path, "src", "index.ts")).text()
+      const lines = index.split("\n").filter((line) => line.trim() !== "")
+      const barrel = lines.map((line) => line.match(/^export \* as (\w+) from "\.\/(\w+)"$/))
+      if (barrel.some((match) => match === null || match[1] !== match[2])) {
+        offenders.push(`${workspace.name}: index.ts is not a namespace barrel`)
+      }
+      const reexported = barrel.map((match) => `./${match?.[1]}`).toSorted()
+      if (reexported.join() !== exported.toSorted().join()) {
+        offenders.push(`${workspace.name}: index.ts re-exports ${reexported}, not ${exported}`)
+      }
+    }
     expect(offenders).toEqual([])
   })
 
-  test("keeps root tooling scripts on workspace dependency imports", async () => {
-    const files = (await walkFiles(join(rootPath, "scripts"))).filter((file) =>
-      sourceExtensions.has(extname(file))
-    )
-    const forbiddenDependencyPath = /(?:packages\/[^"'\s]+\/node_modules\/|node_modules\/\.bun\/)/
+  it("export targets exist and ship", async () => {
     const offenders: Array<string> = []
-
-    for (const file of files) {
-      const source = await Bun.file(file).text()
-      if (forbiddenDependencyPath.test(source)) {
-        offenders.push(file.replace(rootPath, ""))
+    for (const workspace of workspaces) {
+      const manifest = await readManifest(workspace.path)
+      const files = manifest.files ?? []
+      const targets = [
+        ...Object.entries(manifest.exports ?? {}),
+        ...Object.entries(manifest.bin ?? {})
+      ]
+      for (const [key, target] of targets) {
+        const path = target.replace(/^\.\//, "")
+        if (!target.startsWith("./")) {
+          offenders.push(`${workspace.name}: ${key} target ${target} is not relative`)
+        }
+        if (!(await Bun.file(join(workspace.path, path)).exists())) {
+          offenders.push(`${workspace.name}: ${key} target ${target} does not exist`)
+        }
+        if (!files.some((entry) => path === entry || path.startsWith(`${entry}/`))) {
+          offenders.push(`${workspace.name}: ${key} target ${target} is outside files`)
+        }
       }
     }
+    expect(offenders).toEqual([])
+  })
+})
 
+describe("imports", () => {
+  it("import sibling packages by subpath and Effect by module", async () => {
+    const offenders: Array<string> = []
+    for (const workspace of workspaces) {
+      for (const file of await codeFiles(workspace)) {
+        const source = await Bun.file(file).text()
+        if (/from\s+["']@nyc-transit-kit\/[^/"']+["']/.test(source)) {
+          offenders.push(`${display(file)}: imports a package root`)
+        }
+        if (/from\s+["']effect["']/.test(source)) {
+          offenders.push(`${display(file)}: imports effect's root`)
+        }
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it("each workspace depends only on the packages below it", async () => {
+    const offenders: Array<string> = []
+    for (const workspace of workspaces) {
+      const allowed = new Set(
+        (allowedInternalDependencies[workspace.name] ?? []).map(
+          (name) => `@nyc-transit-kit/${name}`
+        )
+      )
+      const manifest = await readManifest(workspace.path)
+      for (const name of Object.keys(manifest.dependencies ?? {})) {
+        if (name.startsWith("@nyc-transit-kit/") && !allowed.has(name)) {
+          offenders.push(`${workspace.name}: depends on ${name}`)
+        }
+      }
+      for (const file of await codeFiles(workspace, ["src", "scripts"])) {
+        const source = await Bun.file(file).text()
+        for (const [, name] of source.matchAll(/from\s+["'](@nyc-transit-kit\/[^/"']+)/g)) {
+          if (name !== undefined && !allowed.has(name)) {
+            offenders.push(`${display(file)}: imports ${name}`)
+          }
+        }
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it("root scripts and tests reach packages by path, not through installed copies", async () => {
+    const files = [
+      ...(await walkFiles(join(rootPath, "scripts"))),
+      ...(await walkFiles(join(rootPath, "tests")))
+    ]
+    const offenders: Array<string> = []
+    for (const file of files) {
+      const source = await Bun.file(file).text()
+      if (/(?:\/node_modules\/|from\s+["']@nyc-transit-kit\/)/.test(source)) {
+        offenders.push(display(file))
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+})
+
+describe("Effect style", () => {
+  // The guards from the Effect design guide's lint table.
+  const guards = [
+    {
+      pattern: /\bas unknown as\b/,
+      rule: "no `as unknown as`: a double cast claims a type nothing checked"
+    },
+    {
+      pattern: /\bnew Date\(\s*\)|\bDate\.now\(\)/,
+      rule: "no reading the wall clock: read Clock, which a test can move"
+    },
+    { pattern: /^(?:export )?let /m, rule: "no top-level `let`: no module state" },
+    { pattern: /\bEffect\.promise\(/, rule: "no `Effect.promise`: a rejection becomes a defect" },
+    { pattern: /\bnew Error\(/, rule: "no `new Error`: fail with a Schema.TaggedError" },
+    {
+      pattern: /\bEffect\.run[A-Z]\w*\(/,
+      rule: "no `Effect.run*`: effects run at the runtime edge"
+    },
+    {
+      pattern: /(?:^|[^.\w])fetch\(/m,
+      rule: "no global `fetch`: use HttpClient, which a test replaces"
+    },
+    {
+      pattern: /effect\/unstable\//,
+      rule: "no `effect/unstable/*`: 4.0.6 ships these modules as stable"
+    }
+  ]
+  const libraryGuards = [
+    {
+      pattern: /\bprocess\.env\b|from "effect\/Config(?:Provider)?"/,
+      rule: "no `process.env`, Config or ConfigProvider in a library: packages take values"
+    },
+    {
+      pattern: /\bEffect\.(?:retry|timeout\w*)\b|\bretryTransient\b|from "effect\/Schedule"/,
+      rule: "no retry or timeout in a library: callers compose Effect.retry and Effect.timeout"
+    }
+  ]
+
+  it("follows the design guide's lint guards", async () => {
+    const offenders: Array<string> = []
+    for (const workspace of workspaces) {
+      const applicable = workspace.kind === "package" ? [...guards, ...libraryGuards] : guards
+      for (const file of await codeFiles(workspace, ["src"])) {
+        const source = await Bun.file(file).text()
+        for (const { pattern, rule } of applicable) {
+          if (pattern.test(source)) {
+            offenders.push(`${display(file)}: ${rule}`)
+          }
+        }
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it("names each service key @nyc-transit-kit/<workspace>/<ClassName>", async () => {
+    const offenders: Array<string> = []
+    for (const workspace of workspaces) {
+      for (const file of await codeFiles(workspace, ["src"])) {
+        const source = await Bun.file(file).text()
+        for (const [, className, key] of source.matchAll(
+          /class (\w+) extends Context\.Service<[\s\S]*?>\(\)\(\s*"([^"]+)"/g
+        )) {
+          if (key !== `@nyc-transit-kit/${workspace.name}/${className}`) {
+            offenders.push(`${display(file)}: ${className} has key ${key}`)
+          }
+        }
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it("parses the command line with effect/cli", async () => {
+    const forbidden = /\b(parseOptions|commandTokensFrom|sameCommandPath|CommandDefinition)\b/
+    const offenders: Array<string> = []
+    for (const workspace of workspaces.filter((candidate) => candidate.kind === "app")) {
+      for (const file of await codeFiles(workspace, ["src"])) {
+        if (forbidden.test(await Bun.file(file).text())) {
+          offenders.push(display(file))
+        }
+      }
+    }
     expect(offenders).toEqual([])
   })
 })

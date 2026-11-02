@@ -4,8 +4,8 @@ import { join } from "node:path"
 type JsonRecord = Record<string, unknown>
 
 const rootPath = new URL("../", import.meta.url).pathname
-const packageRoot = join(rootPath, "packages")
-const metadataPath = join(rootPath, "packages/contracts/src/metadata.ts")
+const workspaceRoots = [join(rootPath, "apps"), join(rootPath, "packages")]
+const buildInfoPath = join(rootPath, "apps/cli/src/BuildInfo.ts")
 const dependencyGroups = [
   "dependencies",
   "devDependencies",
@@ -29,12 +29,15 @@ const readJsonRecord = async (path: string) => {
 const writeJson = async (path: string, value: JsonRecord) =>
   Bun.write(path, `${JSON.stringify(value, null, 2)}\n`)
 
-const packageManifestPaths = async () => {
-  const entries = await readdir(packageRoot, { withFileTypes: true })
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => join(packageRoot, entry.name, "package.json"))
-    .toSorted()
+const workspaceManifestPaths = async () => {
+  const manifests = await Promise.all(
+    workspaceRoots.map(async (root) =>
+      (await readdir(root, { withFileTypes: true }))
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => join(root, entry.name, "package.json"))
+    )
+  )
+  return manifests.flat().toSorted()
 }
 
 const stringField = (record: JsonRecord, key: string) => {
@@ -95,14 +98,14 @@ const manifestFailures = (
   return failures
 }
 
-const syncMetadataSource = (source: string, releaseVersion: string) => {
-  const nextLine = `export const releaseVersion = "${releaseVersion}"`
-  if (/export const releaseVersion = "[^"]+"/.test(source)) {
-    return source.replace(/export const releaseVersion = "[^"]+"/, nextLine)
+/** The CLI reports its version from BuildInfo.ts, so the release version is written there too. */
+const syncBuildInfoSource = (source: string, releaseVersion: string) => {
+  if (!/export const version = "[^"]+"/.test(source)) {
+    throw new Error("apps/cli/src/BuildInfo.ts has no `export const version`")
   }
   return source.replace(
-    /export const schemaVersion = "[^"]+"\n/,
-    (match) => `${match}${nextLine}\n`
+    /export const version = "[^"]+"/,
+    `export const version = "${releaseVersion}"`
   )
 }
 
@@ -118,7 +121,7 @@ if (releaseVersion === undefined || !semverPattern.test(releaseVersion)) {
 const failures: Array<string> = []
 const writes: Array<Promise<unknown>> = []
 
-for (const manifestPath of [rootManifestPath, ...(await packageManifestPaths())]) {
+for (const manifestPath of [rootManifestPath, ...(await workspaceManifestPaths())]) {
   const manifest = await readJsonRecord(manifestPath)
   const label = manifestPath.replace(rootPath, "")
 
@@ -132,15 +135,15 @@ for (const manifestPath of [rootManifestPath, ...(await packageManifestPaths())]
   }
 }
 
-const metadataSource = await Bun.file(metadataPath).text()
-const nextMetadataSource = syncMetadataSource(metadataSource, releaseVersion)
+const buildInfoSource = await Bun.file(buildInfoPath).text()
+const nextBuildInfoSource = syncBuildInfoSource(buildInfoSource, releaseVersion)
 
 if (checkOnly) {
-  if (metadataSource !== nextMetadataSource) {
-    failures.push("packages/contracts/src/metadata.ts: releaseVersion is out of sync")
+  if (buildInfoSource !== nextBuildInfoSource) {
+    failures.push("apps/cli/src/BuildInfo.ts: version is out of sync")
   }
-} else if (metadataSource !== nextMetadataSource) {
-  writes.push(Bun.write(metadataPath, nextMetadataSource))
+} else if (buildInfoSource !== nextBuildInfoSource) {
+  writes.push(Bun.write(buildInfoPath, nextBuildInfoSource))
 }
 
 await Promise.all(writes)

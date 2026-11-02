@@ -1,405 +1,278 @@
-import { describe, expect, test } from "bun:test"
 import { mkdtemp, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { join, relative } from "node:path"
+import { describe, expect, it } from "@effect/vitest"
+import { readManifest, rootPath, workspaces } from "../architecture/helpers"
 
-const rootPath = new URL("../../", import.meta.url).pathname
-const packageRoot = join(rootPath, "packages")
-const apiReferencePath = join(rootPath, "docs", "api-reference.md")
-const gettingStartedPath = join(rootPath, "docs", "getting-started.md")
-const providerCoveragePath = join(rootPath, "docs", "provider-coverage.md")
-const readmePath = join(rootPath, "README.md")
-const cliRuntimePath = join(rootPath, "packages", "cli", "src", "runtime.ts")
-const tsconfigBasePath = join(rootPath, "tsconfig.base.json")
-const effectPackageJsonPath = Bun.resolveSync("effect/package.json", rootPath)
-const effectDistPath = join(dirname(effectPackageJsonPath), "dist")
+const read = (path: string) => Bun.file(join(rootPath, path)).text()
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
-
-const readJsonRecord = async (path: string) => {
-  const parsed: unknown = JSON.parse(await Bun.file(path).text())
-  if (!isRecord(parsed)) {
-    throw new Error(`${path} did not contain a JSON object`)
-  }
-  return parsed
-}
-
-const publicExportKeys = (manifest: Record<string, unknown>) => {
-  const exportsValue = manifest.exports
-  if (!isRecord(exportsValue)) {
-    return []
-  }
-
-  return Object.keys(exportsValue)
-}
-
-const packageManifests = async () => {
-  const entries = await readdir(packageRoot, { withFileTypes: true })
-  return Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map(async (entry) => {
-        const manifest = await readJsonRecord(join(packageRoot, entry.name, "package.json"))
-        const packageName = manifest.name
-        if (typeof packageName !== "string") {
-          throw new Error(`${entry.name} package.json is missing name`)
-        }
-        return {
-          packageName,
-          exports: publicExportKeys(manifest)
-        }
-      })
-  )
-}
-
-const importPathFor = (packageName: string, exportKey: string) =>
+const importPath = (packageName: string, exportKey: string) =>
   exportKey === "." ? packageName : `${packageName}/${exportKey.slice(2)}`
 
-const typeScriptFences = (source: string) =>
-  [...source.matchAll(/```(?:ts|typescript)\n([\s\S]*?)```/g)].map((match) => match[1] ?? "")
+/** Every public import path, with the source file it resolves to. */
+const publicImports = async () =>
+  (
+    await Promise.all(
+      workspaces.map(async (workspace) => {
+        const manifest = await readManifest(workspace.path)
+        return Object.entries(manifest.exports ?? {}).map(([key, target]) => ({
+          workspace,
+          path: importPath(manifest.name, key),
+          file: join(workspace.path, target)
+        }))
+      })
+    )
+  ).flat()
 
-type NamedTypeScriptFence = {
-  readonly sourceName: string
-  readonly index: number
-  readonly code: string
+/** Every TypeScript block in the READMEs and docs/, which must compile against the current code. */
+const typeScriptFences = async () => {
+  const docs = (await readdir(join(rootPath, "docs"))).filter((name) => name.endsWith(".md"))
+  const sources = [
+    "README.md",
+    ...docs.toSorted().map((name) => `docs/${name}`),
+    ...workspaces.map((workspace) => `${workspace.path.slice(rootPath.length)}/README.md`)
+  ]
+  const fences = await Promise.all(
+    sources.map(async (source) =>
+      [...(await read(source)).matchAll(/```(?:ts|typescript)\n([\s\S]*?)```/g)].map(
+        (match, index) => ({ source, index: index + 1, code: match[1] ?? "" })
+      )
+    )
+  )
+  return fences.flat()
 }
 
-const namedTypeScriptFences = (sourceName: string, source: string) =>
-  typeScriptFences(source).map((code, index) => ({
-    sourceName,
-    index: index + 1,
-    code
-  }))
+// The CLI reads its environment through effect/Config, as in Config.Redacted("SOCRATA_APP_TOKEN").
+const cliEnvironmentVariables = async () => {
+  const sources = join(rootPath, "apps", "cli", "src")
+  const variables = new Set<string>()
+  for (const file of await readdir(sources, { recursive: true })) {
+    if (file.endsWith(".ts")) {
+      const source = await Bun.file(join(sources, file)).text()
+      for (const [, name] of source.matchAll(/\bConfig\.\w+\(\s*"([A-Z][A-Z0-9_]*)"/g)) {
+        if (name !== undefined) variables.add(name)
+      }
+    }
+  }
+  return [...variables]
+}
 
-const docsTypeScriptFences = async () => [
-  ...namedTypeScriptFences("docs/api-reference.md", await Bun.file(apiReferencePath).text()),
-  ...namedTypeScriptFences("docs/getting-started.md", await Bun.file(gettingStartedPath).text())
-]
+/** What each public module must export: the names the docs teach. */
+const documentedExports: Readonly<Record<string, ReadonlyArray<string>>> = {
+  "@nyc-transit-kit/soda3": ["Dataset", "Discovery", "Socrata", "Soda3Client", "Soql"],
+  "@nyc-transit-kit/soda3/Soda3Client": [
+    "Soda3Client",
+    "layer",
+    "streamRows",
+    "countRows",
+    "viewUrl"
+  ],
+  "@nyc-transit-kit/soda3/Dataset": ["query", "stream", "exportBytes"],
+  "@nyc-transit-kit/soda3/Discovery": ["search", "metadata", "columns", "url", "DatasetNotFound"],
+  "@nyc-transit-kit/soda3/Socrata": [
+    "SocrataDomain",
+    "SocrataDatasetId",
+    "SocrataError",
+    "datasetUrl",
+    "filterStatusOk"
+  ],
+  "@nyc-transit-kit/soda3/Soql": [
+    "soql",
+    "compile",
+    "eq",
+    "isIn",
+    "isNotNull",
+    "and",
+    "or",
+    "selectAll",
+    "monthWindow",
+    "monthRange",
+    "dateWindow",
+    "timestampRange",
+    "yearMonthRange",
+    "SoqlError"
+  ],
+  "@nyc-transit-kit/mta": [
+    "BusTime",
+    "ElevatorEscalator",
+    "GtfsRealtime",
+    "GtfsStatic",
+    "MtaOpenData"
+  ],
+  "@nyc-transit-kit/mta/GtfsStatic": ["feeds", "probe", "stream"],
+  "@nyc-transit-kit/mta/GtfsRealtime": [
+    "feeds",
+    "decode",
+    "toJson",
+    "summarize",
+    "fetchBytes",
+    "fetchMessage",
+    "capture",
+    "CaptureManifest",
+    "GtfsRealtimeDecodeError"
+  ],
+  "@nyc-transit-kit/mta/ElevatorEscalator": ["feeds", "fetchRows", "Outage", "Equipment"],
+  "@nyc-transit-kit/mta/BusTime": ["feeds", "fetchJson"],
+  "@nyc-transit-kit/mta/MtaOpenData": ["domain", "datasets", "CatalogRow"],
+  "@nyc-transit-kit/nyc-open-data": ["NycDot", "NycOpenData"],
+  "@nyc-transit-kit/nyc-open-data/NycDot": [
+    "datasets",
+    "TrafficSpeedRow",
+    "BusLaneRow",
+    "TrafficVolumeRow"
+  ],
+  "@nyc-transit-kit/nyc-open-data/NycOpenData": ["domain", "datasets"],
+  "@nyc-transit-kit/fixtures": ["HttpTest", "Samples"],
+  "@nyc-transit-kit/fixtures/HttpTest": ["layer", "soda3", "requests", "Requests"],
+  "@nyc-transit-kit/fixtures/Samples": [
+    "trafficSpeedRows",
+    "soda3AuthenticationRequired",
+    "statenIslandRailwayFeed",
+    "lirrAlertsFeed"
+  ],
+  "@nyc-transit-kit/cli": ["Cli", "Envelope", "ReleaseManifest"],
+  "@nyc-transit-kit/cli/Cli": ["run", "command"],
+  "@nyc-transit-kit/cli/Envelope": ["Envelope", "ApiFamily", "schemaVersion"],
+  "@nyc-transit-kit/cli/ReleaseManifest": ["ReleaseManifest", "Artifact"]
+}
 
-const cliEnvVars = (source: string) =>
-  [...source.matchAll(/\benv\.([A-Z][A-Z0-9_]*)\b/g)]
-    .map((match) => match[1])
-    .filter((value): value is string => value !== undefined)
+/** Imports each path the way a consumer would, from inside its own package, and lists its names. */
+const exportedNames = async (directory: string, paths: ReadonlyArray<string>) => {
+  const script = `const names = {}
+for (const path of ${JSON.stringify(paths)}) names[path] = Object.keys(await import(path))
+console.log(JSON.stringify(names))`
+  const proc = Bun.spawn(["bun", "-e", script], { cwd: directory, stderr: "pipe", stdout: "pipe" })
+  const stdout = await new Response(proc.stdout).text()
+  const stderr = await new Response(proc.stderr).text()
+  if ((await proc.exited) !== 0) {
+    throw new Error(`importing from ${directory} failed: ${stderr.trim()}`)
+  }
+  const names: Record<string, ReadonlyArray<string>> = JSON.parse(stdout)
+  return names
+}
 
-const typecheckTypeScriptFences = async (fences: ReadonlyArray<NamedTypeScriptFence>) => {
-  const tempDirectory = await mkdtemp(join(tmpdir(), "ntk-docs-examples-"))
-
+const typecheck = async (fences: ReadonlyArray<{ readonly code: string }>) => {
+  const directory = await mkdtemp(join(tmpdir(), "ntk-docs-examples-"))
   try {
-    const baseTsconfig = await readJsonRecord(tsconfigBasePath)
-    const compilerOptions = isRecord(baseTsconfig.compilerOptions)
-      ? baseTsconfig.compilerOptions
-      : {}
-    const paths = isRecord(compilerOptions.paths) ? compilerOptions.paths : {}
     const files = await Promise.all(
-      fences.map(async (fence) => {
-        const sourceSlug = fence.sourceName
-          .replace(/[^a-z0-9]+/gi, "-")
-          .replace(/^-+|-+$/g, "")
-          .toLowerCase()
-        const path = join(tempDirectory, `${sourceSlug}-example-${fence.index}.ts`)
+      fences.map(async (fence, index) => {
+        const path = join(directory, `example-${index}.ts`)
         await Bun.write(path, fence.code)
         return path
       })
     )
-    const tsconfigPath = join(tempDirectory, "tsconfig.json")
+    const nodeModules = join(rootPath, "node_modules")
+    const platformBun = join(rootPath, "apps", "cli", "node_modules", "@effect", "platform-bun")
+    // Examples import packages by their public paths, resolved here to the sources they name.
+    const paths: Record<string, ReadonlyArray<string>> = {
+      effect: [join(nodeModules, "effect", "dist", "index.d.ts")],
+      "effect/*": [join(nodeModules, "effect", "dist", "*.d.ts")],
+      "@effect/platform-bun/*": [join(platformBun, "dist", "*.d.ts")],
+      "@effect/vitest": [join(nodeModules, "@effect", "vitest", "dist", "index.d.ts")]
+    }
+    for (const entry of await publicImports()) {
+      paths[entry.path] = [entry.file]
+    }
+    const tsconfig = join(directory, "tsconfig.json")
     await Bun.write(
-      tsconfigPath,
-      JSON.stringify(
-        {
-          extends: tsconfigBasePath,
-          compilerOptions: {
-            declaration: false,
-            declarationMap: false,
-            emitDeclarationOnly: false,
-            noEmit: true,
-            baseUrl: rootPath,
-            paths: {
-              ...paths,
-              effect: [join(effectDistPath, "index.d.ts")],
-              "effect/*": [join(effectDistPath, "*.d.ts")]
-            },
-            typeRoots: [join(rootPath, "node_modules", "@types")]
-          },
-          files
-        },
-        null,
-        2
-      )
+      tsconfig,
+      JSON.stringify({
+        extends: join(rootPath, "tsconfig.json"),
+        compilerOptions: { paths, typeRoots: [join(nodeModules, "@types")], plugins: [] },
+        include: [],
+        files
+      })
     )
-    const proc = Bun.spawn(["bun", "run", "tsc", "--project", tsconfigPath, "--pretty", "false"], {
+    const proc = Bun.spawn(["bun", "run", "tsc", "--project", tsconfig, "--pretty", "false"], {
       cwd: rootPath,
       stderr: "pipe",
       stdout: "pipe"
     })
-    const stdout = await new Response(proc.stdout).text()
-    const stderr = await new Response(proc.stderr).text()
-    const exitCode = await proc.exited
-
-    if (exitCode !== 0) {
-      const generatedFiles = files.map((file, index) => {
-        const fence = fences[index]
-        return fence === undefined ? file : `${fence.sourceName} fence ${fence.index}: ${file}`
-      })
-      throw new Error(
-        [
-          "API reference TypeScript examples failed to typecheck.",
-          `Generated files: ${generatedFiles.join(", ")}`,
-          stdout.trim(),
-          stderr.trim()
-        ]
-          .filter((line) => line.length > 0)
-          .join("\n")
-      )
-    }
+    const output =
+      (await new Response(proc.stdout).text()) + (await new Response(proc.stderr).text())
+    return { exitCode: await proc.exited, output, files }
   } finally {
-    await rm(tempDirectory, {
-      recursive: true,
-      force: true
-    })
+    await rm(directory, { recursive: true, force: true })
   }
 }
 
-const importSmokeCases: ReadonlyArray<{
-  readonly importPath: string
-  readonly packageDirectory: string
-  readonly exports: ReadonlyArray<string>
-}> = [
-  {
-    importPath: "@nyc-transit-kit/soda3/client",
-    packageDirectory: "soda3",
-    exports: ["queryRows", "Soda3ClientConfig", "Soda3HttpLive", "soda3Layer"]
-  },
-  {
-    importPath: "@nyc-transit-kit/soda3/endpoints",
-    packageDirectory: "soda3",
-    exports: ["buildQueryUrl", "buildExportUrl"]
-  },
-  {
-    importPath: "@nyc-transit-kit/soda3/errors",
-    packageDirectory: "soda3",
-    exports: ["isSoda3ClientError", "ProviderHttpError", "TimeoutError"]
-  },
-  {
-    importPath: "@nyc-transit-kit/soda3/transport",
-    packageDirectory: "soda3",
-    exports: ["withRequestPolicy", "toWebResponse", "redactedUrl", "fetchHttpClientLayer"]
-  },
-  {
-    importPath: "@nyc-transit-kit/contracts/descriptors",
-    packageDirectory: "contracts",
-    exports: ["makeDescriptorRegistry"]
-  },
-  {
-    importPath: "@nyc-transit-kit/mta/gtfs-static",
-    packageDirectory: "mta",
-    exports: ["probeGtfsStatic", "fetchGtfsStatic", "MtaHttpLive"]
-  },
-  {
-    importPath: "@nyc-transit-kit/mta/gtfs-realtime",
-    packageDirectory: "mta",
-    exports: ["probeGtfsRealtime", "GtfsRealtimeDecoder"]
-  },
-  {
-    importPath: "@nyc-transit-kit/mta/feeds",
-    packageDirectory: "mta",
-    exports: ["mtaGtfsStaticFeeds", "mtaGtfsRealtimeFeeds", "findMtaJsonDirectFeed"]
-  },
-  {
-    importPath: "@nyc-transit-kit/mta/json-direct",
-    packageDirectory: "mta",
-    exports: ["fetchMtaJsonDirect", "redactMtaJsonDirectUrl", "decodeMtaElevatorEscalatorCurrent"]
-  },
-  {
-    importPath: "@nyc-transit-kit/mta/open-data",
-    packageDirectory: "mta",
-    exports: ["decodeMtaOpenDataCatalogRow"]
-  },
-  {
-    importPath: "@nyc-transit-kit/mta/errors",
-    packageDirectory: "mta",
-    exports: ["isMtaError", "MtaHttpError", "MtaDecodeError"]
-  },
-  {
-    importPath: "@nyc-transit-kit/nyc-open-data/client",
-    packageDirectory: "nyc-open-data",
-    exports: ["queryNycOpenDataDataset", "exportNycOpenDataDataset", "searchNycOpenDataCatalog"]
-  },
-  {
-    importPath: "@nyc-transit-kit/nyc-dot/datasets",
-    packageDirectory: "nyc-dot",
-    exports: [
-      "queryNycDotDataset",
-      "exportNycDotDataset",
-      "isUnsupportedDatasetError",
-      "UnsupportedDatasetError"
-    ]
-  },
-  {
-    importPath: "@nyc-transit-kit/compat/soda3",
-    packageDirectory: "compat",
-    exports: ["querySoda3Rows", "exportSoda3Response", "searchSoda3Catalog"]
-  },
-  {
-    importPath: "@nyc-transit-kit/compat/mta",
-    packageDirectory: "compat",
-    exports: ["probeMtaGtfsStatic", "fetchMtaGtfsStaticResponse", "fetchMtaJsonDirect"]
-  },
-  {
-    importPath: "@nyc-transit-kit/compat/nyc-open-data",
-    packageDirectory: "compat",
-    exports: ["queryNycOpenDataRows", "exportNycOpenDataResponse", "searchNycOpenData"]
-  },
-  {
-    importPath: "@nyc-transit-kit/compat/nyc-dot",
-    packageDirectory: "compat",
-    exports: ["queryNycDotRows", "exportNycDotResponse"]
-  },
-  {
-    importPath: "@nyc-transit-kit/compat/errors",
-    packageDirectory: "compat",
-    exports: [
-      "isTransitKitCompatError",
-      "isSoda3ClientError",
-      "isMtaError",
-      "isUnsupportedDatasetError",
-      "ProviderHttpError",
-      "MtaHttpError",
-      "UnsupportedDatasetError"
-    ]
-  },
-  {
-    importPath: "@nyc-transit-kit/contracts/soda3",
-    packageDirectory: "contracts",
-    exports: ["Soda3QueryRequest", "Soda3QueryResponse"]
-  }
-]
-
-const exportedNamesFromPublicImport = async (
-  importPath: string,
-  packageDirectory: string
-): Promise<ReadonlyArray<string>> => {
-  const proc = Bun.spawn(
-    [
-      "bun",
-      "-e",
-      `const imported = await import(${JSON.stringify(importPath)}); console.log(JSON.stringify(Object.keys(imported)))`
-    ],
-    {
-      cwd: join(packageRoot, packageDirectory),
-      stderr: "pipe",
-      stdout: "pipe"
-    }
-  )
-  const stdout = await new Response(proc.stdout).text()
-  const stderr = await new Response(proc.stderr).text()
-  const exitCode = await proc.exited
-  if (exitCode !== 0) {
-    throw new Error(`${importPath} failed to import: ${stderr.trim()}`)
-  }
-  const parsed: unknown = JSON.parse(stdout)
-  if (!Array.isArray(parsed)) {
-    throw new Error(`${importPath} did not print exported names`)
-  }
-  return parsed.filter((value): value is string => typeof value === "string")
-}
-
-describe("API reference docs", () => {
-  test("mentions every public package export path", async () => {
-    const source = await Bun.file(apiReferencePath).text()
-    const missing: Array<string> = []
-
-    for (const manifest of await packageManifests()) {
-      for (const exportKey of manifest.exports) {
-        const importPath = importPathFor(manifest.packageName, exportKey)
-        if (!source.includes(importPath)) {
-          missing.push(importPath)
-        }
-      }
-    }
-
+describe("API reference", () => {
+  it("mentions every public import path", async () => {
+    const reference = await read("docs/api-reference.md")
+    const missing = (await publicImports())
+      .map((entry) => entry.path)
+      .filter((path) => !reference.includes(path))
     expect(missing).toEqual([])
   })
 
-  test("documents exports that importable subpaths actually expose", async () => {
+  it("teaches names the public modules export", { timeout: 30_000 }, async () => {
+    const imports = await publicImports()
+    expect(Object.keys(documentedExports).toSorted()).toEqual(
+      imports.map((entry) => entry.path).toSorted()
+    )
     const missing: Array<string> = []
-
-    for (const smoke of importSmokeCases) {
-      const exportedNames = new Set(
-        await exportedNamesFromPublicImport(smoke.importPath, smoke.packageDirectory)
-      )
-
-      for (const exportName of smoke.exports) {
-        if (!exportedNames.has(exportName)) {
-          missing.push(`${smoke.importPath}: missing ${exportName}`)
+    for (const workspace of workspaces) {
+      const paths = imports
+        .filter((entry) => entry.workspace === workspace)
+        .map((entry) => entry.path)
+      const names = await exportedNames(workspace.path, paths)
+      for (const path of paths) {
+        const exported = new Set(names[path])
+        for (const name of documentedExports[path] ?? []) {
+          if (!exported.has(name)) missing.push(`${path}: missing ${name}`)
         }
       }
     }
-
     expect(missing).toEqual([])
   })
 
-  test("uses package subpath imports in TypeScript examples", async () => {
-    const manifests = await packageManifests()
-    const packagesWithSubpaths = manifests
-      .filter((manifest) => manifest.exports.some((exportKey) => exportKey !== "."))
-      .map((manifest) => manifest.packageName)
+  it("documents the CLI's environment variables", async () => {
+    const variables = await cliEnvironmentVariables()
+    expect(variables).toContain("SOCRATA_APP_TOKEN")
+    const missing: Array<string> = []
+    for (const source of ["README.md", "docs/api-reference.md"]) {
+      const text = await read(source)
+      for (const variable of variables) {
+        if (!text.includes(variable)) missing.push(`${source}: ${variable}`)
+      }
+    }
+    expect(missing).toEqual([])
+  })
+
+  it("links the provider coverage policy from public docs", async () => {
+    expect(await read("README.md")).toContain("docs/provider-coverage.md")
+    expect(await read("docs/api-reference.md")).toContain("provider-coverage.md")
+    const coverage = await read("docs/provider-coverage.md")
+    expect(coverage).toContain("Generic coverage")
+    expect(coverage).toContain("Rejected For v0")
+  })
+})
+
+describe("examples", () => {
+  it("import packages by subpath and never reach SODA2", async () => {
     const offenders: Array<string> = []
-
-    for (const fence of await docsTypeScriptFences()) {
-      for (const packageName of packagesWithSubpaths) {
-        const rootImportPattern = new RegExp(
-          `(?:from\\s+["']${packageName}["']|import\\(\\s*["']${packageName}["']\\s*\\))`
-        )
-        if (rootImportPattern.test(fence.code)) {
-          offenders.push(
-            `${fence.sourceName} code fence ${fence.index}: imports ${packageName} root`
-          )
-        }
+    for (const fence of await typeScriptFences()) {
+      if (/(?:from\s+|import\(\s*)["']@nyc-transit-kit\/[^/"']+["']/.test(fence.code)) {
+        offenders.push(`${fence.source} example ${fence.index}: imports a package root`)
+      }
+      if (fence.code.includes("/resource/")) {
+        offenders.push(`${fence.source} example ${fence.index}: uses a SODA2 URL`)
       }
     }
-
     expect(offenders).toEqual([])
   })
 
-  test("does not include legacy Socrata endpoint examples", async () => {
-    const offenders = (await docsTypeScriptFences())
-      .filter((fence) => fence.code.includes("/resource/"))
-      .map((fence) => `${fence.sourceName} code fence ${fence.index}`)
-
-    expect(offenders).toEqual([])
-  })
-
-  test("documents CLI environment variables", async () => {
-    const runtimeSource = await Bun.file(cliRuntimePath).text()
-    const readme = await Bun.file(readmePath).text()
-    const apiReference = await Bun.file(apiReferencePath).text()
-    const missing: Array<string> = []
-
-    for (const variable of cliEnvVars(runtimeSource)) {
-      if (!readme.includes(variable)) {
-        missing.push(`README.md: ${variable}`)
-      }
-      if (!apiReference.includes(variable)) {
-        missing.push(`docs/api-reference.md: ${variable}`)
-      }
-    }
-
-    expect(missing).toEqual([])
-  })
-
-  test("links the provider coverage policy from public docs", async () => {
-    const readme = await Bun.file(readmePath).text()
-    const apiReference = await Bun.file(apiReferencePath).text()
-    const providerCoverage = await Bun.file(providerCoveragePath).text()
-
-    expect(readme).toContain("docs/provider-coverage.md")
-    expect(apiReference).toContain("provider-coverage.md")
-    expect(providerCoverage).toContain("Generic coverage")
-    expect(providerCoverage).toContain("Rejected For v0")
-  })
-
-  test("typechecks TypeScript examples", async () => {
-    await typecheckTypeScriptFences(await docsTypeScriptFences())
+  it("typecheck against the current code", { timeout: 60_000 }, async () => {
+    const fences = await typeScriptFences()
+    expect(fences.length).toBeGreaterThan(0)
+    const result = await typecheck(fences)
+    const located = result.files.reduce((output, file, index) => {
+      const fence = fences[index]
+      const name = `${fence?.source} example ${fence?.index}`
+      // tsc names files relative to where it runs.
+      return output.replaceAll(relative(rootPath, file), name).replaceAll(file, name)
+    }, result.output)
+    expect(located.trim()).toBe("")
+    expect(result.exitCode).toBe(0)
   })
 })

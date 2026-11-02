@@ -1,61 +1,71 @@
 # Downstream Adapters
 
-Downstream applications should consume this toolkit without moving their private
-product logic into this repository.
+Downstream applications use the toolkit without moving their product logic into
+it. For every export, see the [API reference](api-reference.md); for install
+and the Effect version each release needs, see
+[Getting started](getting-started.md#compatibility).
 
-For the current package export map, preferred subpath imports, and symbol
-reference, see the [API reference](api-reference.md). For a task-oriented
-adoption path, see [Getting Started](getting-started.md), especially the
-[compatibility matrix](getting-started.md#compatibility) for the exact Effect
-beta pinned by each release.
+## From Effect Code
 
-## Effect-Native Consumption
-
-```ts
-import { soda3Layer } from "@nyc-transit-kit/soda3/client"
-import { queryRows } from "@nyc-transit-kit/soda3/query"
-import * as Effect from "effect/Effect"
-
-const program = queryRows({
-  domain: "data.cityofnewyork.us",
-  datasetId: "ycrg-ses3",
-  query: "SELECT *"
-}).pipe(Effect.provide(soda3Layer({ retryTimes: 2 })))
-```
-
-Provider packages expose Effect programs and receive configuration through
-services or arguments. For Socrata-backed datasets, MTA Open Data, NYC Open
-Data, and NYC DOT helpers delegate to `@nyc-transit-kit/soda3`.
-Use Effect-native APIs when callers already use Effect or want typed errors,
-layers, retries, and composition at the application edge.
-Prefer operation subpaths such as `@nyc-transit-kit/soda3/query` for application
-and package code. Use `@nyc-transit-kit/soda3/client` for SODA3 services and
-layers. Package-root imports remain a convenience surface for broad exploration,
-but subpaths give bundlers the clearest tree-shaking boundary.
-
-## Promise Compat Consumption
+Provide the layers once, where the app starts, and use the functions anywhere
+below. This needs a `Soda3Client` layer, as in Getting started:
 
 ```ts
-import { queryNycDotRows } from "@nyc-transit-kit/compat/nyc-dot"
+import * as NycDot from "@nyc-transit-kit/nyc-open-data/NycDot"
+import * as Dataset from "@nyc-transit-kit/soda3/Dataset"
+import * as Soql from "@nyc-transit-kit/soda3/Soql"
+import * as Stream from "effect/Stream"
 
-const rows = await queryNycDotRows({
-  name: "traffic-speeds",
-  query: "SELECT *"
-})
+// Your own type: the toolkit's rows stay at the edge of your app.
+interface LaneSegment {
+  readonly street: string
+  readonly hours: string
+}
+
+export const queensBusLanes = Dataset.stream(NycDot.datasets["bus-lanes-local-streets"], {
+  where: Soql.eq("boro", "QNS")
+}).pipe(
+  Stream.map((row): LaneSegment => ({ street: row.street, hours: row.hours })),
+  Stream.runCollect
+)
 ```
 
-`packages/compat` contains thin Promise wrappers over Effect programs. Those
-wrappers must not duplicate endpoint construction, retry behavior, schema
-definitions, or provider-specific business logic.
-Use `@nyc-transit-kit/compat/*` wrappers when callers want Promises and do not
-need to own an Effect runtime directly. Promise wrappers reject with the native
-typed errors from the underlying Effect programs; use
-`@nyc-transit-kit/compat/errors` for shared error imports,
-`isTransitKitCompatError`, and provider-family guards such as
-`isSoda3ClientError`.
+Map provider rows into your own types at that edge. A provider renaming a
+column then breaks one function instead of your whole app.
+
+## From Promise Code
+
+There is no Promise package. Build a `ManagedRuntime` once and run programs
+through it:
+
+```ts
+import * as NycDot from "@nyc-transit-kit/nyc-open-data/NycDot"
+import * as Dataset from "@nyc-transit-kit/soda3/Dataset"
+import * as Soda3Client from "@nyc-transit-kit/soda3/Soda3Client"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+import * as Layer from "effect/Layer"
+import * as ManagedRuntime from "effect/ManagedRuntime"
+import * as Redacted from "effect/Redacted"
+
+export const makeTransitClient = (appToken: string) => {
+  const runtime = ManagedRuntime.make(
+    Soda3Client.layer({ appToken: Redacted.make(appToken) }).pipe(
+      Layer.provide(FetchHttpClient.layer)
+    )
+  )
+  return {
+    latestSpeeds: (limit: number) =>
+      runtime.runPromise(Dataset.query(NycDot.datasets["traffic-speeds"], { limit })),
+    close: () => runtime.dispose()
+  }
+}
+```
+
+A rejected Promise carries the same typed error the Effect failed with, such as
+`SocrataError` with Socrata's message.
 
 ## Keep Local To Downstreams
 
-Downstream projects should keep analytics, database projections, detector logic,
-route scoring, route briefs, product-specific UI, hosted pipelines, and document
-extraction in their own repositories.
+Analytics, database projections, detector logic, route scoring, route briefs,
+product UI, hosted pipelines and document extraction stay in their own
+repositories.

@@ -1,180 +1,339 @@
 # Getting Started
 
-`nyc-transit-kit` is for transit-data developers, analysts, and downstream
-applications that need typed access to official NYC and MTA public data without
-bringing product-specific analytics into this repository.
-
-## Who This Is For
-
-- Transit-data developers building against official NYC/MTA APIs.
-- Analysts using the Bun CLI to inspect, query, export, or dry-run public data.
-- Downstream apps that want Effect-native clients or thin Promise wrappers.
+`nyc-transit-kit` gives typed access to official NYC and MTA public data. The
+libraries are Effect programs; the `ntk` CLI runs the same code from a shell.
 
 ## Install
 
-The v0 packages are source-first TypeScript packages. They are best consumed
-from Bun or from a TypeScript toolchain that can compile TypeScript in
-dependencies.
+The packages publish TypeScript source. Use Bun, or a toolchain that compiles
+TypeScript in dependencies. `effect` is a peer dependency, so your app and the
+kit share one copy:
 
 ```sh
-bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.2.0
-bun add @nyc-transit-kit/mta @nyc-transit-kit/nyc-dot
-bun add @nyc-transit-kit/compat
+bun add effect@^4.0.6 @nyc-transit-kit/soda3 @nyc-transit-kit/nyc-open-data @nyc-transit-kit/mta
 ```
 
-Install only the provider packages your app needs. For CLI use, install
-`@nyc-transit-kit/cli` or run the repo binary during development.
+Install only the provider packages you use. Each module is a namespace:
+`import * as Dataset from "@nyc-transit-kit/soda3/Dataset"`.
 
 ## Compatibility
 
-Each `nyc-transit-kit` release pins one exact Effect 4 beta. Pin your
-application's `effect` package to the same version or the lockfile can install
-two Effect copies with incompatible types.
-
-| nyc-transit-kit | effect | @effect/platform-bun |
+| nyc-transit-kit | effect | how the kit depends on it |
 | --- | --- | --- |
-| 0.1.0 / 0.1.1 | 4.0.0-beta.83 | 4.0.0-beta.83 |
-| 0.1.2 / 0.1.3 / 0.1.4 | 4.0.0-beta.92 | 4.0.0-beta.92 |
-| 0.2.0 | 4.0.0-beta.92 | 4.0.0-beta.92 |
+| 0.1.0 / 0.1.1 | 4.0.0-beta.83 | exact dependency |
+| 0.1.2 / 0.1.3 / 0.1.4 | 4.0.0-beta.92 | exact dependency |
+| 0.2.0 | 4.0.0-beta.92 | exact dependency |
+| 0.3.0 | ^4.0.6 | peer dependency; the CLI pins 4.0.6 |
 
-```sh
-bun add effect@4.0.0-beta.92 @nyc-transit-kit/soda3@0.2.0
-```
-
-The tested downstream TypeScript envelope is TS 6.x with `strict`,
+Your compiler checks the kit's source with your settings, so the published
+modules are type-checked under TypeScript 6 with `strict`,
 `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
-`noPropertyAccessFromIndexSignature`, `verbatimModuleSyntax`,
-`module: Preserve`, `moduleResolution: Bundler`, and
-`allowImportingTsExtensions`; see
-[`tests/downstream-strict/tsconfig.json`](../tests/downstream-strict/tsconfig.json).
+`noPropertyAccessFromIndexSignature`, `isolatedModules`,
+`verbatimModuleSyntax`, `module: Preserve` and `moduleResolution: Bundler`, and
+without Bun or Node types; see
+[`tsconfig.published.json`](../tsconfig.published.json).
 
-`effect` is currently an exact regular dependency, not a peer dependency. A
-version mismatch surfaces as a duplicate install rather than an install-time
-conflict.
+## Query a curated dataset
 
-## Migrating 0.1.x To 0.2.0
+A curated dataset carries the schema of its rows, so query results arrive
+decoded. Filters are `Soql` fragments: columns are written as quoted
+identifiers and values as SoQL literals, so input never changes the shape of
+the query.
 
-0.2.0 is the first surface-compression release. It keeps package boundaries and
-runtime behavior intact, but removes compatibility aliases and folds several
-small subpaths into their owning concepts.
-
-Use these import moves when updating 0.1.x callers:
-
-| 0.1.x import or name | 0.2.0 replacement |
-| --- | --- |
-| `@nyc-transit-kit/contracts/descriptor-registry` | `@nyc-transit-kit/contracts/descriptors` |
-| `@nyc-transit-kit/contracts/nyc-dot` | `@nyc-transit-kit/contracts/descriptors` |
-| `@nyc-transit-kit/contracts/nyc-open-data` | `@nyc-transit-kit/contracts/descriptors` |
-| root `*Type` schema aliases from `@nyc-transit-kit/contracts` | import the original schema-inferred type names directly |
-| `Soda3Operation` | removed; branch on the request shape or command context instead |
-| `CliEnvelopeStatus` | removed; use `CliEnvelope` and its `ok` discriminant |
-| `@nyc-transit-kit/mta/datasets` | `@nyc-transit-kit/mta/open-data` or `@nyc-transit-kit/mta/feeds` |
-| `@nyc-transit-kit/mta/elevator-escalator` | `@nyc-transit-kit/mta/json-direct` |
-| `@nyc-transit-kit/mta/open-data-catalog` | `@nyc-transit-kit/mta/open-data` |
-| `gtfsStaticSurface`, `gtfsRealtimeSurface` | removed from the MTA root surface; use feed descriptors from `@nyc-transit-kit/mta/feeds` |
-| `@nyc-transit-kit/nyc-open-data/query` | `@nyc-transit-kit/nyc-open-data/client` |
-| `@nyc-transit-kit/nyc-open-data/catalog` | `@nyc-transit-kit/nyc-open-data/client` |
-| `@nyc-transit-kit/nyc-open-data/datasets` | `@nyc-transit-kit/nyc-open-data/descriptors` |
-| deprecated NYC Open Data DOT descriptor aliases | use DOT descriptors from `@nyc-transit-kit/nyc-dot/datasets` |
-| `@nyc-transit-kit/nyc-dot/client` | `@nyc-transit-kit/nyc-dot/datasets` |
-| `@nyc-transit-kit/nyc-dot/errors` | `@nyc-transit-kit/nyc-dot/datasets` |
-| `@nyc-transit-kit/nyc-dot/bus-lanes` | `@nyc-transit-kit/nyc-dot/rows` |
-| `@nyc-transit-kit/nyc-dot/traffic-speeds` | `@nyc-transit-kit/nyc-dot/rows` |
-| `@nyc-transit-kit/nyc-dot/traffic-volume` | `@nyc-transit-kit/nyc-dot/rows` |
-| compat error imports from `@nyc-transit-kit/compat/soda3`, `/mta`, `/nyc-open-data`, or `/nyc-dot` | `@nyc-transit-kit/compat/errors` or the compat package root |
-| CLI source `*CommandPaths` arrays | removed; use the command tree itself rather than source-level path arrays |
-
-The new `@nyc-transit-kit/soda3/transport` subpath exposes the shared low-level
-transport policy helpers used by SODA3 and MTA provider packages.
-
-## Effect-Native Query
-
-Socrata-backed access is SODA3-only. Core packages take explicit config through
-arguments, services, and layers.
+SODA3 refuses query and export without an app token. Create one in your Socrata
+developer settings ([app tokens](https://dev.socrata.com/docs/app-tokens)). The
+libraries never read the environment; your app reads the token and passes it in.
 
 ```ts
-import { soda3Layer } from "@nyc-transit-kit/soda3/client"
-import { queryRows } from "@nyc-transit-kit/soda3/query"
+import * as NycDot from "@nyc-transit-kit/nyc-open-data/NycDot"
+import * as Dataset from "@nyc-transit-kit/soda3/Dataset"
+import * as Soda3Client from "@nyc-transit-kit/soda3/Soda3Client"
+import * as Soql from "@nyc-transit-kit/soda3/Soql"
+import * as Config from "effect/Config"
 import * as Effect from "effect/Effect"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+import * as Layer from "effect/Layer"
 
-const program = queryRows({
-  domain: "data.cityofnewyork.us",
-  datasetId: "ycrg-ses3",
-  query: "SELECT * LIMIT 5"
-}).pipe(Effect.provide(soda3Layer({ retryTimes: 2 })))
-```
-
-## Provider Helper
-
-Provider packages add domain defaults, curated descriptors, and selected typed
-adapters on top of the generic SODA3 layer.
-
-```ts
-import { queryNycDotDataset } from "@nyc-transit-kit/nyc-dot/datasets"
-import { soda3Layer } from "@nyc-transit-kit/soda3/client"
-import * as Effect from "effect/Effect"
-
-const program = queryNycDotDataset({
-  name: "traffic-speeds",
-  query: "SELECT * LIMIT 5"
-}).pipe(Effect.provide(soda3Layer()))
-```
-
-MTA direct-feed descriptors are available without contacting live endpoints:
-
-```ts
-import { findMtaJsonDirectFeed } from "@nyc-transit-kit/mta/feeds"
-
-const feed = findMtaJsonDirectFeed("elevator-escalator-current")
-```
-
-## Promise Compat
-
-Use `@nyc-transit-kit/compat/*` wrappers when the caller wants Promises instead
-of owning an Effect runtime.
-
-```ts
-import { queryNycDotRows } from "@nyc-transit-kit/compat/nyc-dot"
-
-const rowsPromise = queryNycDotRows({
-  name: "traffic-speeds",
-  query: "SELECT * LIMIT 5"
+const latestStatenIslandSpeeds = Dataset.query(NycDot.datasets["traffic-speeds"], {
+  where: Soql.eq("borough", "Staten Island"),
+  orderBy: { column: "data_as_of", direction: "DESC" },
+  limit: 10
 })
+
+const Soda3Live = Layer.unwrap(
+  Effect.map(Config.Redacted("SOCRATA_APP_TOKEN"), (appToken) => Soda3Client.layer({ appToken }))
+).pipe(Layer.provide(FetchHttpClient.layer))
+
+const rows = await Effect.runPromise(latestStatenIslandSpeeds.pipe(Effect.provide(Soda3Live)))
+for (const row of rows) {
+  console.log(row.link_name, row.speed, row.data_as_of)
+}
 ```
 
-Promise wrappers reject with the same typed errors as the underlying Effect
-programs. Import error classes, provider-family guards, and
-`isTransitKitCompatError` from `@nyc-transit-kit/compat/errors` when Promise
-callers need to narrow failures.
+The query goes out as
+``SELECT * WHERE `borough` = 'Staten Island' ORDER BY `data_as_of` DESC LIMIT 10``.
+A row that does not match the schema fails the query with a `SchemaError`
+instead of reaching your code half-formed.
+
+## Query any dataset by id
+
+The `Soda3Client` service takes any SoQL and returns plain rows. Use it for
+projections, aggregates and datasets the kit does not curate. A query given as
+a string is sent as written; build anything that holds input with `Soql`.
+
+```ts
+import * as Socrata from "@nyc-transit-kit/soda3/Socrata"
+import * as Soda3Client from "@nyc-transit-kit/soda3/Soda3Client"
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
+
+const trafficSpeeds = {
+  domain: Socrata.SocrataDomain.make("data.cityofnewyork.us"),
+  datasetId: Socrata.SocrataDatasetId.make("i4gi-tjb9")
+}
+
+export const readingsPerBorough = Effect.gen(function* () {
+  const soda = yield* Soda3Client.Soda3Client
+  const byBorough = yield* soda.query({
+    ...trafficSpeeds,
+    query: "SELECT borough, count(*) AS readings GROUP BY borough ORDER BY borough"
+  })
+  const total = yield* Soda3Client.countRows(trafficSpeeds)
+  return { byBorough, total }
+})
+
+// Every row, one page per request, ending at the first short page. Traffic
+// Speeds grows while you page, so order it oldest first: new rows land last.
+export const firstThousandLinks = Soda3Client.streamRows({
+  ...trafficSpeeds,
+  query: "SELECT link_id, link_name, data_as_of ORDER BY data_as_of"
+}).pipe(Stream.take(1000), Stream.runCollect)
+```
+
+Both need a `Soda3Client` layer, as above.
+
+## Search the catalog
+
+The Discovery API needs no token.
+
+```ts
+import * as NycOpenData from "@nyc-transit-kit/nyc-open-data/NycOpenData"
+import * as Discovery from "@nyc-transit-kit/soda3/Discovery"
+import * as Effect from "effect/Effect"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+
+const found = await Effect.runPromise(
+  Discovery.search({ domain: NycOpenData.domain, query: "bus lanes", limit: 5 }).pipe(
+    Effect.provide(FetchHttpClient.layer)
+  )
+)
+for (const result of found.results) {
+  console.log(result.resource.id, result.resource.name)
+  console.log(Discovery.columns(result).map((column) => column.field))
+}
+```
+
+## Read MTA feeds
+
+GTFS-realtime feeds and the elevator and escalator feeds need no key.
+
+```ts
+import * as ElevatorEscalator from "@nyc-transit-kit/mta/ElevatorEscalator"
+import * as GtfsRealtime from "@nyc-transit-kit/mta/GtfsRealtime"
+import * as Effect from "effect/Effect"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+
+const program = Effect.gen(function* () {
+  const ace = yield* GtfsRealtime.fetchMessage(GtfsRealtime.feeds["subway-ace"].url)
+  // The "current" feed lists upcoming outages too; isupcomingoutage tells them apart.
+  const outages = yield* ElevatorEscalator.fetchRows(
+    ElevatorEscalator.feeds["elevator-escalator-current"]
+  )
+  return {
+    ace: GtfsRealtime.summarize(ace),
+    elevatorsOutNow: outages.filter(
+      (row) => row.equipmenttype === "EL" && row.isupcomingoutage === "N"
+    ).length
+  }
+})
+
+console.log(await Effect.runPromise(program.pipe(Effect.provide(FetchHttpClient.layer))))
+```
+
+## Retries and timeouts are yours
+
+The libraries never retry and never time out on their own: how patient to be
+with a provider is the caller's decision. Compose it on the `HttpClient` you
+provide, or on the program:
+
+```ts
+import * as NycDot from "@nyc-transit-kit/nyc-open-data/NycDot"
+import * as Dataset from "@nyc-transit-kit/soda3/Dataset"
+import * as Effect from "effect/Effect"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+import * as HttpClient from "effect/http/HttpClient"
+import * as Layer from "effect/Layer"
+import * as Schedule from "effect/Schedule"
+
+// Retries network errors, 408, 429 and 5xx, waiting at least as long as Retry-After asks.
+export const PatientHttp = Layer.effect(
+  HttpClient.HttpClient,
+  Effect.map(
+    HttpClient.HttpClient,
+    HttpClient.retryTransient({ schedule: Schedule.exponential("250 millis"), times: 3 })
+  )
+).pipe(Layer.provide(FetchHttpClient.layer))
+
+export const boundedQuery = Dataset.query(NycDot.datasets["traffic-speeds"], { limit: 100 }).pipe(
+  Effect.timeout("10 seconds")
+)
+```
+
+## Test your code without the network
+
+`@nyc-transit-kit/fixtures` holds real responses, cut down, and `HttpTest`, an
+`HttpClient` that answers from a handler and records every request. Your code
+keeps its real client; only the transport is replaced. `HttpTest.soda3` refuses
+what SODA3 refuses, such as a request without a token, with SODA3's real
+answers. [Testing](testing.md) has more.
+
+```ts
+import { expect, it } from "@effect/vitest"
+import * as HttpTest from "@nyc-transit-kit/fixtures/HttpTest"
+import * as Samples from "@nyc-transit-kit/fixtures/Samples"
+import * as NycDot from "@nyc-transit-kit/nyc-open-data/NycDot"
+import * as Dataset from "@nyc-transit-kit/soda3/Dataset"
+import * as Soda3Client from "@nyc-transit-kit/soda3/Soda3Client"
+import * as Soql from "@nyc-transit-kit/soda3/Soql"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Redacted from "effect/Redacted"
+
+const Soda3Test = Soda3Client.layer({ appToken: Redacted.make("test-token") }).pipe(
+  Layer.provideMerge(HttpTest.soda3(() => Response.json(Samples.trafficSpeedRows)))
+)
+
+it.effect("asks SODA3 for Queens and decodes what it sends", () =>
+  Effect.gen(function* () {
+    const rows = yield* Dataset.query(NycDot.datasets["traffic-speeds"], {
+      where: Soql.eq("borough", "Queens")
+    })
+    expect(rows).toHaveLength(Samples.trafficSpeedRows.length)
+    const [request] = yield* HttpTest.requests
+    expect(request?.url.pathname).toBe("/api/v3/views/i4gi-tjb9/query.json")
+    expect(request?.body).toEqual({ query: "SELECT * WHERE `borough` = 'Queens'" })
+  }).pipe(Effect.provide(Soda3Test))
+)
+```
 
 ## CLI
 
-The published CLI requires Bun at runtime because its npm bin is a Bun-shebang
-wrapper. Install it with Bun and run it through `bunx`. Every command supports
-`--help`; `--json` is the stable machine-readable contract, and dry-run commands
-avoid live provider calls.
+The CLI needs Bun at runtime.
 
 ```sh
 bun add -d @nyc-transit-kit/cli
-bunx ntk --version --json
-bunx ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json --dry-run
-bunx ntk mta gtfs-rt probe --feed alerts-all --json --dry-run
+export SOCRATA_APP_TOKEN=...   # SODA3 query and export refuse requests without it
+
+bunx ntk nyc-dot dataset query --name traffic-speeds --select "link_name, speed, data_as_of LIMIT 5"
+bunx ntk catalog search --domain data.cityofnewyork.us --query "bus lanes" --limit 5
+bunx ntk mta gtfs-rt probe --feed subway-ace
+bunx ntk mta elevator-escalator --feed elevator-escalator-current --json
 ```
 
-## Tokens
+`--json` writes exactly one envelope to stdout. `--dry-run` prints the requests
+a command would send, with the token redacted, and sends none of them. The
+[API reference](api-reference.md#cli) lists every command and error code.
 
-`SOCRATA_APP_TOKEN` is optional and CLI-only. Core packages do not read
-environment variables; pass app tokens through explicit config such as
-`Soda3ClientConfig` or Promise compat options.
+## Migrating 0.2.x To 0.3.0
 
-```sh
-SOCRATA_APP_TOKEN=<token> bunx ntk socrata query --domain data.cityofnewyork.us --dataset ycrg-ses3 --select "*" --json
-```
+0.3.0 moves to Effect 4.0.6 stable, gives each provider one package, and makes
+every module a namespace. The CLI keeps its 0.2 commands and adds
+`ntk mta elevator-escalator`; its JSON `schemaVersion` is now `0.2.0`.
 
-## Boundaries
+Packages:
 
-Generic access is broad, typed adapters are curated, and downstream product
-logic stays downstream. Start with the provider coverage docs when you need to
-understand release scope. See [Product Boundary](product-boundary.md),
-[Provider Coverage](provider-coverage.md), [Downstream Adapters](downstream-adapters.md),
-and the [API Reference](api-reference.md).
+| 0.2.x | 0.3.0 |
+| --- | --- |
+| `effect` installed by the kit | add `effect@^4.0.6` to your app; the kit peers it |
+| `@nyc-transit-kit/compat` | removed; run the Effect program with `Effect.runPromise` where your app starts |
+| `querySoda3Rows`, `queryAllSoda3Rows`, `countSoda3Rows`, `exportSoda3Response` and the other `compat` functions | the same operation from the tables below, run with `Effect.runPromise(program.pipe(Effect.provide(layer)))` |
+| `@nyc-transit-kit/contracts` | removed; each schema lives in the module of the provider that defines it (below) |
+| `@nyc-transit-kit/nyc-dot` | `@nyc-transit-kit/nyc-open-data/NycDot` |
+| `@nyc-transit-kit/soda3/endpoints`, `/transport`, `/client`, `/query`, `/export`, `/catalog`, `/metadata`, `/errors`, `/soql` | `/Soda3Client`, `/Dataset`, `/Discovery`, `/Socrata`, `/Soql` |
+| `@nyc-transit-kit/mta/client`, `/errors`, `/feeds`, `/gtfs-static`, `/gtfs-realtime`, `/json-direct`, `/open-data` | `/GtfsStatic`, `/GtfsRealtime`, `/ElevatorEscalator`, `/BusTime`, `/MtaOpenData` |
+
+Socrata:
+
+| 0.2.x | 0.3.0 |
+| --- | --- |
+| `soda3Layer(options)`, `soda3ConfigLayer(options)`, `Soda3Live`, `Soda3ClientConfig` | `Soda3Client.layer({ appToken: Redacted.make(token) })` plus an `HttpClient` layer such as `FetchHttpClient.layer`; retry and timeout options as in the next row |
+| `retryTimes`, timeout options, `withRequestPolicy` | `HttpClient.retryTransient`, `Effect.retry`, `Effect.timeout` on your side |
+| `soda3FetchLayer(fetch)`, `FetchImplementation` | `FetchHttpClient.layer`, with your `fetch` provided under it as `Layer.succeed(FetchHttpClient.Fetch, fetch)` |
+| `queryRows(input)` | the `Soda3Client` service's `query(request)`, or `Dataset.query(dataset, clauses)` for typed rows |
+| `queryAllRows`, `countRows` | `Soda3Client.streamRows(request)` or `Dataset.stream(dataset)`, which pages oldest first by the dataset's `timestampColumn` unless given an `orderBy`; `Soda3Client.countRows(ref, where?)` |
+| `exportResponse`, `Soda3ExportFormat` | the service's `export(request)` or `Dataset.exportBytes(dataset, body?)`, a CSV byte stream. There is no format to choose: on 2026-11-01 SODA3 refused `json` and `geojson` exports with a 406 |
+| `catalogSearch`, `buildCatalogSearchUrl` | `Discovery.search(search)`, `Discovery.url` |
+| `fetchDatasetMetadata` | `Discovery.metadata(ref)`; `Discovery.columns(result)` zips its columns |
+| `buildQueryUrl`, `buildExportUrl` | `Soda3Client.viewUrl(ref, "query.json")`, `Soda3Client.viewUrl(ref, "export.csv")` |
+| the `/transport` helpers: `fetchHttpClientLayer`, `isOkStatus`, `retryableStatus`, `httpFailureInfo` and the rest | Effect's `HttpClient`: `FetchHttpClient.layer`, `HttpClient.filterStatusOk`, `HttpClient.retryTransient` |
+| `InvalidInputError`, `ProviderHttpError`, `ProviderContractError`, `TimeoutError`, `RetryExhaustedError` | `HttpClientError` from Effect, `Socrata.SocrataError` with Socrata's sentence, `SchemaError`, `Soql.SoqlError` |
+| `Soda3ClientError` | `Soda3Client.QueryError`, or `Soda3Client.ExportError` for exports |
+| `isSoda3ClientError(value)` | inside the program, `Effect.catchTag("SocrataError", …)` and the other tags; outside it, `Effect.runPromise` rejects with the error itself, so test `error instanceof Socrata.SocrataError` or `HttpClientError.isHttpClientError(error)` |
+| `isRetryableProviderError` | `HttpClient.retryTransient`, which decides what is transient |
+| `SocrataDomain`, `SocrataDatasetId`, `IsoDate` from `contracts/ids` | the same schemas in `@nyc-transit-kit/soda3/Socrata` |
+
+SoQL. The 0.2 helpers sent values as `:name` placeholders, but SODA3 binds
+`parameters` only in parameterized views and reads `:name` as a system column.
+0.3.0 writes values as SoQL literals, so there are no parameter names, and the
+filters are plain functions rather than effects:
+
+| 0.2.x | 0.3.0 |
+| --- | --- |
+| `soqlEq(column, name, value)`, `soqlIn(column, name, values)` | `Soql.eq(column, value)`, `Soql.isIn(column, [value, ...values])` |
+| `soqlIsNotNull`, `soqlAnd`, `soqlSelectAll` | `Soql.isNotNull`, `Soql.and` (and `Soql.or`), `Soql.selectAll(clauses)` |
+| `soqlIdentifier`, `soqlParameterName`, `soqlParameter`, `SoqlParameters` | `Soql.identifier(name)` inside a `` Soql.soql`...` `` template; values need no names |
+| `soqlOrderBy`, `soqlLimit` | the `orderBy` and `limit` clauses of `Soql.selectAll` and `Dataset.query` |
+| `socrataTimestamp`, `socrataMonthWindow`, `socrataDateWindow` | `Soql.timestamp`, `Soql.monthWindow`, `Soql.dateWindow` |
+| `soqlTimestampRange`, `soqlMonthWindow`, `soqlYearMonthRange` | `Soql.timestampRange(column, window)`, `Soql.monthRange(column, month)`, `Soql.yearMonthRange(columns, start, end)` |
+
+MTA and NYC Open Data:
+
+| 0.2.x | 0.3.0 |
+| --- | --- |
+| `mtaLayer`, `mtaConfigLayer`, `MtaClientConfig`, `MtaHttpLive`, `MtaLive`, `mtaFetchLayer` | any `HttpClient` layer; retries and timeouts as for Socrata |
+| `MtaHttpError`, `MtaDecodeError` and the other MTA errors, `isMtaError` | `HttpClientError`, `SchemaError`, `GtfsRealtime.GtfsRealtimeDecodeError`, told apart as in the `isSoda3ClientError` row |
+| `mtaGtfsStaticFeeds`, `mtaGtfsRealtimeFeeds`, `mtaJsonDirectFeeds`, `findMta*Feed` | `GtfsStatic.feeds`, `GtfsRealtime.feeds`, `ElevatorEscalator.feeds`, `BusTime.feeds`: index them by name |
+| `probeGtfsStatic`, `fetchGtfsStatic`, `fetchGtfsStaticResponse` | `GtfsStatic.probe(url)`, `GtfsStatic.stream(url)` |
+| `probeGtfsRealtime`, `decodeGtfsRealtimeBytes`, `GtfsRealtimeDecoder` | `GtfsRealtime.fetchMessage(url)`, `GtfsRealtime.decode(bytes)`, `GtfsRealtime.summarize(message)` |
+| `decodeGtfsRealtimeBytesSync(bytes)` | `Effect.runSync(GtfsRealtime.decode(bytes))`: decoding needs no services, and a bad feed throws the `GtfsRealtimeDecodeError` |
+| `captureGtfsRealtime` | `GtfsRealtime.capture(name, url)`; needs a `Crypto` layer such as `BunCrypto.layer` |
+| `fetchMtaJsonDirect`, `decodeMtaElevatorEscalatorCurrent` | `ElevatorEscalator.fetchRows(ElevatorEscalator.feeds[name])`, decoded with the feed's row schema |
+| `queryMtaOpenData`, `mtaOpenDataDatasets`, `mtaOpenDataDomain`, `mtaOpenDataCatalogDescriptor`, `findMtaOpenDataDataset` | `Dataset.query(MtaOpenData.datasets.catalog)`, `MtaOpenData.datasets`, `MtaOpenData.domain` |
+| `nycDotDatasets`, `trafficSpeeds`, `busLanesLocalStreets`, `trafficVolumeCounts`, `findNycDotDataset`, `requireNycDotDataset`, `queryNycDotDataset`, `exportNycDotDataset` | `NycDot.datasets[name]` with `Dataset.query`, `Dataset.stream` and `Dataset.exportBytes` |
+| `UnsupportedDatasetError`, `isUnsupportedDatasetError` | removed: `NycDot.datasets` is a typed record, so a name it lacks is a type error |
+| `queryNycOpenDataDataset`, `exportNycOpenDataDataset`, `searchNycOpenDataCatalog` | the `Soda3Client` service, and `Discovery.search({ domain: NycOpenData.domain })` |
+| `defaultDomain`, `knownNycOpenDataDatasets`, `findNycOpenDataDataset` | `NycOpenData.domain`, `NycOpenData.datasets` |
+| `decodeTrafficSpeedRow` and the other row decoders | `Schema.decodeUnknownEffect(NycDot.TrafficSpeedRow)` and the other row schemas |
+| `NycDotTrafficSpeedRow`, `NycDotBusLaneRow`, `NycDotTrafficVolumeRow`, `MtaOpenDataCatalogRow` | `NycDot.TrafficSpeedRow`, `NycDot.BusLaneRow`, `NycDot.TrafficVolumeRow`, `MtaOpenData.CatalogRow` |
+| `MtaElevatorEscalatorCurrentRow` | `ElevatorEscalator.Outage`, `ElevatorEscalator.Equipment` |
+| `MtaGtfsRealtimeCaptureManifest` | `GtfsRealtime.CaptureManifest` |
+| descriptors, `makeDescriptorRegistry`, `lastVerified`, `tags`, `adapterStatus` | removed; a curated dataset is a plain `Dataset` record |
+
+Fixtures and the CLI:
+
+| 0.2.x | 0.3.0 |
+| --- | --- |
+| `sampleSoda3QueryResponse` and the other `sample*` fixtures | `Samples.*` from `@nyc-transit-kit/fixtures/Samples`: real responses, cut down |
+| stubbing `fetch` in tests | `HttpTest.layer(handler)` or `HttpTest.soda3(handler)` |
+| `CliEnvelope` and the rest of `contracts/cli` | `Envelope.Envelope`, `Envelope.Meta`, `Envelope.ErrorDetail`, `Envelope.ApiFamily` from `@nyc-transit-kit/cli/Envelope` |
+| `CliReleaseManifest`, `CliReleaseArtifact` | `ReleaseManifest.ReleaseManifest`, `ReleaseManifest.Artifact` |
+| `schemaVersion` `0.1.0`, `releaseVersion` | `Envelope.schemaVersion` is `0.2.0`; the release version is the package version |
+| `packageName` exports | removed |
+| CLI `SOCRATA_APP_TOKEN` optional | required for `socrata query`, `export`, `range-probe` and the `dataset query` and `export` commands |
+| CLI `--format json`, `--format geojson` | refused as `invalid-option` before any request, since SODA3 answered both with a 406; `--format csv`, the default, still works |
+| CLI `--json` help printed raw | `--json --help` answers with `{ ok: true, data: { help } }` |
+| `ntk mta gtfs-rt decode` repeated `probe` | it prints every entity |
+
+The row schemas changed with the data: `TrafficVolumeRow` uses Socrata's
+`date` column (not `count_date`), and every curated row schema decodes real
+rows captured on 2026-10-27.

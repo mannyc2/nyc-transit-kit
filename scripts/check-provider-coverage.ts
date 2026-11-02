@@ -1,7 +1,10 @@
-import { mtaDirectFeeds } from "../packages/mta/src/feeds"
-import { mtaOpenDataDatasets } from "../packages/mta/src/open-data"
-import { nycDotDatasets } from "../packages/nyc-dot/src/datasets"
-import { knownNycOpenDataDatasets } from "../packages/nyc-open-data/src/descriptors"
+import * as BusTime from "../packages/mta/src/BusTime"
+import * as ElevatorEscalator from "../packages/mta/src/ElevatorEscalator"
+import * as GtfsRealtime from "../packages/mta/src/GtfsRealtime"
+import * as GtfsStatic from "../packages/mta/src/GtfsStatic"
+import * as MtaOpenData from "../packages/mta/src/MtaOpenData"
+import * as NycDot from "../packages/nyc-open-data/src/NycDot"
+import * as NycOpenData from "../packages/nyc-open-data/src/NycOpenData"
 import {
   type CoverageProvider,
   catalogResource,
@@ -12,7 +15,7 @@ import {
   recordsFromSnapshot,
   requiredArgValue,
   uniqueSorted
-} from "./provider-descriptor-shared"
+} from "./provider-coverage-shared"
 
 type CliConfig = {
   readonly provider: CoverageProvider
@@ -68,16 +71,27 @@ const parseArgs = (args: ReadonlyArray<string>): CliConfig => {
   }
 }
 
+const datasetIds = (datasets: Readonly<Record<string, { readonly datasetId: string }>>) =>
+  Object.values(datasets).map((dataset) => dataset.datasetId)
+
+/** Direct feeds are keyed by name; a name shared by a static and a realtime feed counts once. */
+const mtaDirectFeedNames = [
+  ...Object.keys(GtfsStatic.feeds),
+  ...Object.keys(GtfsRealtime.feeds),
+  ...Object.keys(ElevatorEscalator.feeds),
+  ...Object.keys(BusTime.feeds)
+]
+
 const localIdsFor = (provider: CoverageProvider) => {
   switch (provider) {
     case "mta-direct":
-      return mtaDirectFeeds.map((feed) => feed.id)
+      return mtaDirectFeedNames
     case "mta-open-data":
-      return mtaOpenDataDatasets.map((descriptor) => String(descriptor.id))
+      return datasetIds(MtaOpenData.datasets)
     case "nyc-dot":
-      return nycDotDatasets.map((descriptor) => String(descriptor.id))
+      return datasetIds(NycDot.datasets)
     case "nyc-open-data":
-      return knownNycOpenDataDatasets.map((descriptor) => String(descriptor.id))
+      return datasetIds(NycOpenData.datasets)
   }
 }
 

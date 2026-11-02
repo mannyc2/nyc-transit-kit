@@ -1,0 +1,15 @@
+{
+  "name": "@nyc-transit-kit/release-tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runs @mannyc1/ts-release 0.0.7, which is built on an Effect 4 beta and breaks when mixed with Effect 4.0.6. This package keeps its own lockfile so the release tooling stays on that beta while the published packages use 4.0.6.",
+  "dependencies": {
+    "@effect/platform-bun": "4.0.0-beta.92",
+    "@mannyc1/ts-release": "0.0.7",
+    "effect": "4.0.0-beta.92"
+  },
+  "overrides": {
+    "@effect/platform-node-shared": "4.0.0-beta.92"
+  }
+}

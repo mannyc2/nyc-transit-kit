@@ -1,11 +1,10 @@
 import { copyFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { basename, dirname, join } from "node:path"
+import { rootPath, workspaceDirectories } from "./workspaces"
 
 type JsonRecord = Record<string, unknown>
 
-const rootPath = new URL("../", import.meta.url).pathname
-const packageRoot = join(rootPath, "packages")
 const stageRoot = join(rootPath, ".release/npm")
 const artifactsRoot = join(rootPath, ".release/artifacts")
 const releaseRepository = "mannyc2/nyc-transit-kit"
@@ -38,21 +37,10 @@ const readJsonRecord = async (path: string) => {
 const writeJson = async (path: string, value: JsonRecord) =>
   Bun.write(path, `${JSON.stringify(value, null, 2)}\n`)
 
-const packageDirectories = async () => {
-  const entries = await readdir(packageRoot, { withFileTypes: true })
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .toSorted()
-}
-
 const streamText = async (stream: ReadableStream<Uint8Array> | null) =>
   stream === null ? "" : await new Response(stream).text()
 
-const runCommand = async (
-  command: ReadonlyArray<string>,
-  options: { readonly cwd?: string | undefined } = {}
-) => {
+const runCommand = async (command: ReadonlyArray<string>, options: { readonly cwd: string }) => {
   const proc = Bun.spawn([...command], {
     cwd: options.cwd,
     stderr: "pipe",
@@ -126,12 +114,12 @@ const addFileEntries = (manifest: JsonRecord, entries: ReadonlyArray<string>) =>
 
 const addReleaseMetadata = (
   manifest: JsonRecord,
-  packageDirectory: string,
+  workspaceDirectory: string,
   releaseVersion: string
 ) => {
   const packageName = stringField(manifest, "name")
   if (packageName === undefined) {
-    throw new Error(`${packageDirectory}: package manifest is missing name`)
+    throw new Error(`${workspaceDirectory}: package manifest is missing name`)
   }
 
   manifest.version = releaseVersion
@@ -139,7 +127,7 @@ const addReleaseMetadata = (
   manifest.repository = {
     type: "git",
     url: `git+https://github.com/${releaseRepository}.git`,
-    directory: `packages/${packageDirectory}`
+    directory: workspaceDirectory
   }
   manifest.homepage = `https://github.com/${releaseRepository}#readme`
   manifest.bugs = {
@@ -170,26 +158,8 @@ const addReleaseMetadata = (
   addFileEntries(manifest, ["LICENSE", "README.md"])
 }
 
-const copyPackageReadme = async (stageDirectory: string, packageDirectory: string) =>
-  copyFile(join(packageRoot, packageDirectory, "README.md"), join(stageDirectory, "README.md"))
-
-const stageCliBinWrappers = async (stageDirectory: string, manifest: JsonRecord) => {
-  const binDirectory = join(stageDirectory, "bin")
-  await mkdir(binDirectory, { recursive: true })
-  const wrapper = [
-    "#!/usr/bin/env bun",
-    'import { main } from "../src/main.ts"',
-    "await main()",
-    ""
-  ].join("\n")
-  await Bun.write(join(binDirectory, "ntk"), wrapper)
-  await Bun.write(join(binDirectory, "nyc-transit"), wrapper)
-  manifest.bin = {
-    ntk: "./bin/ntk",
-    "nyc-transit": "./bin/nyc-transit"
-  }
-  addFileEntries(manifest, ["bin"])
-}
+const copyPackageReadme = async (stageDirectory: string, workspaceDirectory: string) =>
+  copyFile(join(rootPath, workspaceDirectory, "README.md"), join(stageDirectory, "README.md"))
 
 await runCommand(["bun", "run", "release:version:check"], { cwd: rootPath })
 
@@ -211,9 +181,10 @@ const staged: Array<{
   readonly version: string
 }> = []
 
-for (const packageDirectory of await packageDirectories()) {
-  const packagePath = join(packageRoot, packageDirectory)
-  const stageDirectory = join(stageRoot, packageDirectory)
+// The CLI ships its TypeScript: its bin is src/bin.ts, which starts with #!/usr/bin/env bun.
+for (const workspaceDirectory of await workspaceDirectories()) {
+  const packagePath = join(rootPath, workspaceDirectory)
+  const stageDirectory = join(stageRoot, basename(workspaceDirectory))
   const tempDirectory = await mkdtemp(join(tmpdir(), "ntk-source-pack-"))
 
   try {
@@ -232,15 +203,12 @@ for (const packageDirectory of await packageDirectories()) {
   const manifest = await readJsonRecord(manifestPath)
   const packageName = stringField(manifest, "name")
   if (packageName === undefined) {
-    throw new Error(`${packageDirectory}: staged package is missing name`)
+    throw new Error(`${workspaceDirectory}: staged package is missing name`)
   }
 
-  addReleaseMetadata(manifest, packageDirectory, releaseVersion)
-  if (packageDirectory === "cli") {
-    await stageCliBinWrappers(stageDirectory, manifest)
-  }
+  addReleaseMetadata(manifest, workspaceDirectory, releaseVersion)
   await copyFile(join(rootPath, "LICENSE"), join(stageDirectory, "LICENSE"))
-  await copyPackageReadme(stageDirectory, packageDirectory)
+  await copyPackageReadme(stageDirectory, workspaceDirectory)
   await writeJson(manifestPath, manifest)
 
   await runCommand(["npm", "pack", "--json", "--pack-destination", artifactsRoot, stageDirectory], {
